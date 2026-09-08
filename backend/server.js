@@ -599,7 +599,12 @@ app.post('/api/upload', (req, res) => {
             console.error('Upload error:', err);
             return res.status(500).json({ success: false });
         }
-        const url = `http://localhost:3000/uploads/${fileName}`;
+
+        // Use the request host to construct the URL dynamically
+        const protocol = req.protocol;
+        const host = req.get('host');
+        const url = `${protocol}://${host}/uploads/${fileName}`;
+
         res.json({ success: true, url });
     });
 });
