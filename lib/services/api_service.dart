@@ -10,8 +10,8 @@ import '../models/release_record.dart';
 
 class ApiService {
   static const String _pcIp = "172.20.10.12";
-  static const String _productionUrl = "https://your-app-name.onrender.com/api";
-  static const bool _isProduction = false; // Set to true when you deploy!
+  static const String _productionUrl = "https://village-bank-app.onrender.com/api";
+  static const bool _isProduction = true; // Set to true when you deploy!
 
   static String get baseUrl {
     if (_isProduction) return _productionUrl;
@@ -313,9 +313,10 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        // Replace localhost with actual IP for mobile devices
         String url = data['url'];
-        if (!kIsWeb && Platform.isAndroid) {
+        
+        // Only perform localhost replacement if NOT in production
+        if (!_isProduction && !kIsWeb && Platform.isAndroid) {
           url = url.replaceAll('localhost', _pcIp);
         }
         return url;

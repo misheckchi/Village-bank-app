@@ -21,9 +21,26 @@ app.use(bodyParser.json({ limit: '10mb' }));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('Connected to MongoDB Atlas'))
-    .catch(err => console.error('MongoDB connection error:', err));
+const mongoUri = process.env.MONGODB_URI;
+if (!mongoUri) {
+    console.error('FATAL: MONGODB_URI is not defined in environment variables!');
+} else {
+    // Sanitize URI for logging (hide password)
+    const sanitizedUri = mongoUri.replace(/:([^@]+)@/, ':****@');
+    console.log(`[DB] Attempting connection to: ${sanitizedUri}`);
+}
+
+mongoose.connect(mongoUri)
+    .then(() => {
+        console.log('Successfully connected to MongoDB Atlas');
+        console.log(`[DB] Database Name: ${mongoose.connection.name}`);
+    })
+    .catch(err => {
+        console.error('CRITICAL: MongoDB connection error details:');
+        console.error(`- Message: ${err.message}`);
+        console.error(`- Code: ${err.code}`);
+        if (err.reason) console.error(`- Reason: ${JSON.stringify(err.reason)}`);
+    });
 
 // Schemas
 const UserSchema = new mongoose.Schema({
