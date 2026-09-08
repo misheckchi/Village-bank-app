@@ -30,7 +30,9 @@ if (!mongoUri) {
     console.log(`[DB] Attempting connection to: ${sanitizedUri}`);
 }
 
-mongoose.connect(mongoUri)
+mongoose.connect(mongoUri, {
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+})
     .then(() => {
         console.log('Successfully connected to MongoDB Atlas');
         console.log(`[DB] Database Name: ${mongoose.connection.name}`);
@@ -39,7 +41,10 @@ mongoose.connect(mongoUri)
         console.error('CRITICAL: MongoDB connection error details:');
         console.error(`- Message: ${err.message}`);
         console.error(`- Code: ${err.code}`);
-        if (err.reason) console.error(`- Reason: ${JSON.stringify(err.reason)}`);
+        if (err.reason) {
+            console.error(`- Reason Type: ${err.reason.type}`);
+            console.error(`- Servers Found: ${Object.keys(err.reason.servers || {}).length}`);
+        }
     });
 
 // Schemas
