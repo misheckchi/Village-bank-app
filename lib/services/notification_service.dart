@@ -5,7 +5,7 @@ class NotificationService {
   static GlobalKey<ScaffoldMessengerState> messengerKey = GlobalKey<ScaffoldMessengerState>();
 
   static Future<void> init() async {
-    // No external init needed for built-in tools
+    // Initialization logic if needed
   }
 
   static void showNotification({
@@ -16,8 +16,12 @@ class NotificationService {
     final context = messengerKey.currentContext;
     if (context == null) return;
 
-    // Play sound and vibration
-    playTransactionSound();
+    // Play distinct sounds based on the status
+    if (isError) {
+      playErrorSound();
+    } else {
+      playTransactionSound();
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -77,14 +81,38 @@ class NotificationService {
 
   static Future<void> playTransactionSound() async {
     try {
-      // Alert is usually louder than click
+      // Modern "Success" pattern: Triple click with rising haptic intensity
+      await SystemSound.play(SystemSoundType.click);
+      await HapticFeedback.mediumImpact();
+      
+      await Future.delayed(const Duration(milliseconds: 100));
+      await SystemSound.play(SystemSoundType.click);
+      await HapticFeedback.lightImpact();
+
+      await Future.delayed(const Duration(milliseconds: 150));
       await SystemSound.play(SystemSoundType.click);
       await HapticFeedback.heavyImpact();
+    } catch (e) {
+      debugPrint('Sound Error: $e');
+    }
+  }
 
-      // Attempt to play a second sound shortly after if supported
-      Future.delayed(const Duration(milliseconds: 200), () {
-        SystemSound.play(SystemSoundType.click);
-      });
+  static Future<void> playErrorSound() async {
+    try {
+      // Modern "Error" pattern: Double sharp vibration
+      await HapticFeedback.vibrate();
+      await SystemSound.play(SystemSoundType.click);
+      await Future.delayed(const Duration(milliseconds: 100));
+      await HapticFeedback.vibrate();
+    } catch (e) {
+      debugPrint('Sound Error: $e');
+    }
+  }
+
+  static Future<void> playClickSound() async {
+    try {
+      await SystemSound.play(SystemSoundType.click);
+      await HapticFeedback.selectionClick();
     } catch (e) {
       debugPrint('Sound Error: $e');
     }

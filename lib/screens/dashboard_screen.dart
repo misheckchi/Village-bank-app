@@ -359,6 +359,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(minimumSize: const Size(140, 45)),
                   onPressed: () {
+                    NotificationService.playClickSound();
                     final amount = double.tryParse(amountController.text);
                     final tid = tidController.text.trim();
                     if (amount != null && amount > 0 && tid.isNotEmpty && tid != "PENDING") {
@@ -499,6 +500,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(minimumSize: const Size(140, 45), backgroundColor: Colors.greenAccent, foregroundColor: Colors.black),
                   onPressed: () {
+                    NotificationService.playClickSound();
                     final amount = double.tryParse(amountController.text);
                     final tid = tidController.text.trim();
                     if (amount != null && amount > 0 && tid.isNotEmpty && tid != "PENDING") {
