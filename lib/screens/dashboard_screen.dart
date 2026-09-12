@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform;
 import '../models/transaction.dart';
 import '../services/bank_provider.dart';
+import '../services/notification_service.dart';
 import '../utils/theme.dart';
 import '../widgets/glass_container.dart';
 import '../widgets/bank_bar_chart.dart';
