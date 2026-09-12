@@ -778,12 +778,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           Text(user.name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
                           Text(user.phoneNumber, style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontSize: 13)),
                           const SizedBox(height: 8),
-                          Row(
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 4,
                             children: [
                               _buildMiniIndividualStat('Savings', 'MK ${user.savings.toStringAsFixed(0)}', BankTheme.accentPurple),
-                              const SizedBox(width: 12),
                               _buildMiniIndividualStat('Principal', 'MK ${user.loan.toStringAsFixed(0)}', Colors.orangeAccent),
-                              const SizedBox(width: 12),
                               _buildMiniIndividualStat('Interest', 'MK ${user.interest.toStringAsFixed(0)}', Colors.redAccent),
                             ],
                           ),
