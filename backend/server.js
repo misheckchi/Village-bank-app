@@ -172,7 +172,7 @@ app.post('/api/auth/login', async (req, res) => {
             res.json({
                 success: true,
                 role: user.role,
-                token: user.phoneNumber,
+                token: user.role === 'admin' ? 'admin-token' : user.phoneNumber,
                 name: user.name
             });
         } else {
@@ -200,7 +200,7 @@ app.post('/api/auth/register', async (req, res) => {
         res.json({
             success: true,
             role: newUser.role,
-            token: newUser.phoneNumber,
+            token: newUser.role === 'admin' ? 'admin-token' : newUser.phoneNumber,
             name: fullName
         });
     } catch (e) {

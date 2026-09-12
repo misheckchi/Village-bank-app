@@ -355,6 +355,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               builder: (context) => const ChatScreen(otherUserPhone: 'group', otherUserName: 'Community Group Chat'),
             )),
           ),
+          IconButton(
+            icon: Icon(Icons.chat_bubble_outline_rounded, size: 20, color: BankTheme.textMuted),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (context) => const ChatScreen(otherUserPhone: 'admin-token', otherUserName: 'Support Messages'),
+            )),
+          ),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert_rounded, color: BankTheme.textMuted),
             onSelected: (value) {
