@@ -17,6 +17,7 @@ class BankProvider with ChangeNotifier {
   List<PendingLoan> _pendingLoans = [];
   List<dynamic> _pendingPayouts = [];
   List<dynamic> _pendingDeposits = [];
+  List<dynamic> _pendingRepayments = [];
   List<SystemLog> _logs = [];
   List<UserInfo> _users = [];
   List<ChatMessage> _messages = [];
@@ -34,6 +35,7 @@ class BankProvider with ChangeNotifier {
   List<PendingLoan> get pendingLoans => _pendingLoans;
   List<dynamic> get pendingPayouts => _pendingPayouts;
   List<dynamic> get pendingDeposits => _pendingDeposits;
+  List<dynamic> get pendingRepayments => _pendingRepayments;
   List<SystemLog> get logs => _logs;
   List<UserInfo> get users => _users;
   List<ChatMessage> get messages => _messages;
@@ -56,6 +58,7 @@ class BankProvider with ChangeNotifier {
     _pendingLoans = [];
     _pendingPayouts = [];
     _pendingDeposits = [];
+    _pendingRepayments = [];
     _users = [];
     _messages = [];
     _releases = [];
@@ -161,6 +164,7 @@ class BankProvider with ChangeNotifier {
       final pLoans = await _apiService.fetchPendingLoans();
       final pPayouts = await _apiService.fetchPendingPayouts();
       final pDeposits = await _apiService.fetchPendingDeposits();
+      final pRepayments = await _apiService.fetchPendingRepayments();
       final uList = await _apiService.fetchUsers();
       
       if (stats != null) {
@@ -179,10 +183,18 @@ class BankProvider with ChangeNotifier {
           );
         }
 
+        if (_pendingRepayments.isNotEmpty && pRepayments.length > _pendingRepayments.length) {
+          NotificationService.showNotification(
+            title: 'New Repayment',
+            body: 'A new repayment is waiting for verification.',
+          );
+        }
+
         _adminStats = stats;
         _pendingLoans = pLoans;
         _pendingPayouts = pPayouts;
         _pendingDeposits = pDeposits;
+        _pendingRepayments = pRepayments;
 
         // Only update users if we actually got a list back
         if (uList.isNotEmpty || _users.isEmpty) {
@@ -224,6 +236,15 @@ class BankProvider with ChangeNotifier {
     return success;
   }
 
+  Future<bool> processRepayment(String repaymentId, bool approve) async {
+    final success = await _apiService.approveRepayment(repaymentId, approve);
+    if (success) {
+      NotificationService.playTransactionSound();
+      await refreshAdminData();
+    }
+    return success;
+  }
+
   Future<bool> makeDeposit(double amount, String transactionId) async {
     if (_user == null) return false;
     final success = await _apiService.deposit(amount, _user!.token, transactionId);
@@ -244,9 +265,9 @@ class BankProvider with ChangeNotifier {
     return success;
   }
 
-  Future<bool> repayLoan() async {
+  Future<bool> repayLoan(double amount, String transactionId) async {
     if (_user == null) return false;
-    final success = await _apiService.repayLoan(_user!.token);
+    final success = await _apiService.repayLoan(amount, _user!.token, transactionId);
     if (success) {
       NotificationService.playTransactionSound();
       await refreshMemberData();
@@ -278,6 +299,7 @@ class BankProvider with ChangeNotifier {
     _pendingLoans = [];
     _pendingPayouts = [];
     _pendingDeposits = [];
+    _pendingRepayments = [];
     _users = [];
     _messages = [];
     _releases = [];

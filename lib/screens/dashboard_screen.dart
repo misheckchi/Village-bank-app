@@ -23,7 +23,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedTabIndex = 0;
-  String _selectedPaymentMethod = 'Airtel Money';
+  String _selectedPaymentMethod = 'National Bank (626)';
 
   final Map<String, String> _ussdCodes = {
     'Airtel Money': '*211#',
@@ -134,14 +134,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final provider = Provider.of<BankProvider>(context, listen: false);
       bool success = false;
       if (isRepayment) {
-        success = await provider.repayLoan();
+        success = await provider.repayLoan(amount, transactionId);
       } else {
         success = await provider.makeDeposit(amount, transactionId);
       }
 
       if (mounted && success) {
         provider.sendMessage(
-          text: isRepayment ? 'Loan repayment submitted.' : 'Deposit verification requested for MK ${amount.toStringAsFixed(2)}.',
+          text: isRepayment ? 'Loan repayment submitted for verification.' : 'Deposit verification requested for MK ${amount.toStringAsFixed(2)}.',
           receiverPhone: 'admin-token',
           transactionId: transactionId,
         );
@@ -151,7 +151,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             backgroundColor: Colors.greenAccent,
             behavior: SnackBarBehavior.floating,
             content: Text(
-              isRepayment ? 'Repayment Submitted!' : 'Deposit Submitted for Verification!',
+              isRepayment ? 'Repayment Submitted! Please wait ~10 mins for verification.' : 'Deposit Submitted! Please wait ~10 mins for verification.',
               style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
             ),
             action: SnackBarAction(
@@ -576,92 +576,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: 0,
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Mini Brand Icon
-            Stack(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  child: RichText(
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'V',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1,
-                            color: isDark ? Colors.white : BankTheme.lightTextPrimary,
-                            fontFamily: 'Inter',
-                          ),
-                        ),
-                        const TextSpan(
-                          text: 'B',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1,
-                            color: BankTheme.accentPurple,
-                            fontFamily: 'Inter',
-                          ),
-                        ),
-                      ],
+            const SizedBox(width: 16),
+            // Mini Brand Icon - Simplified for space
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                border: Border.all(color: BankTheme.accentPurple, width: 1.5),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: 'V',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : BankTheme.lightTextPrimary,
+                      ),
                     ),
-                  ),
+                    const TextSpan(
+                      text: 'B',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: BankTheme.accentPurple,
+                      ),
+                    ),
+                  ],
                 ),
-                Positioned(top: 0, left: 0, right: 0, child: Container(height: 1.5, color: BankTheme.accentPurple)),
-                Positioned(bottom: 0, left: 0, right: 0, child: Container(height: 1.5, color: BankTheme.accentPurple)),
-                Positioned(left: 0, top: 0, child: Container(width: 1.5, height: 6, color: BankTheme.accentPurple)),
-                Positioned(left: 0, bottom: 0, child: Container(width: 1.5, height: 6, color: BankTheme.accentPurple)),
-                Positioned(right: 0, top: 0, child: Container(width: 1.5, height: 6, color: BankTheme.accentPurple)),
-                Positioned(right: 0, bottom: 0, child: Container(width: 1.5, height: 6, color: BankTheme.accentPurple)),
-              ],
+              ),
             ),
-            const SizedBox(width: 12),
-            Text('Village ', style: TextStyle(fontWeight: FontWeight.bold, color: theme.textTheme.titleLarge?.color)),
-            const Text('Bank', style: TextStyle(fontWeight: FontWeight.bold, color: BankTheme.accentPurple)),
+            const SizedBox(width: 8),
+            Text('Village ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.textTheme.titleLarge?.color)),
+            const Text('Bank', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: BankTheme.accentPurple)),
           ],
         ),
         actions: [
-          Consumer<BankProvider>(
-            builder: (context, provider, child) => Container(
-              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.1)),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(provider.user?.name ?? 'Active', style: const TextStyle(fontSize: 12, color: BankTheme.statusYellow, fontWeight: FontWeight.bold)),
-                  Text('Acc: ${provider.user?.token ?? ""}', style: TextStyle(fontSize: 9, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary)),
-                ],
-              ),
-            ),
-          ),
-          IconButton(
-            icon: Icon(
-              Provider.of<BankProvider>(context).themeMode == ThemeMode.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              size: 20,
-              color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary,
-            ),
-            onPressed: () => Provider.of<BankProvider>(context, listen: false).toggleTheme(),
-          ),
           IconButton(
             icon: Icon(Icons.group_rounded, size: 20, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (context) => const ChatScreen(otherUserPhone: 'group', otherUserName: 'Community Group Chat'),
-            )),
-          ),
-          IconButton(
-            icon: Icon(Icons.cloud_done_rounded, size: 20, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
-            tooltip: 'Release Records',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (context) => const ReleaseHistoryScreen(),
             )),
           ),
           IconButton(
@@ -670,16 +629,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
               builder: (context) => const ChatScreen(otherUserPhone: 'admin-token', otherUserName: 'Village Bank Support'),
             )),
           ),
-          IconButton(
-            icon: Icon(Icons.logout_rounded, size: 20, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
-            onPressed: () {
-              Provider.of<BankProvider>(context, listen: false).logout();
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const AuthScreen()),
-                (route) => false,
-              );
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert_rounded, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
+            onSelected: (value) {
+              if (value == 'theme') {
+                Provider.of<BankProvider>(context, listen: false).toggleTheme();
+              } else if (value == 'releases') {
+                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const ReleaseHistoryScreen()));
+              } else if (value == 'logout') {
+                Provider.of<BankProvider>(context, listen: false).logout();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const AuthScreen()),
+                  (route) => false,
+                );
+              }
             },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      Provider.of<BankProvider>(context, listen: false).user?.name ?? 'User',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : BankTheme.lightTextPrimary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      'Account: ${Provider.of<BankProvider>(context, listen: false).user?.token ?? ""}',
+                      style: const TextStyle(fontSize: 10, color: BankTheme.statusYellow),
+                    ),
+                    const Divider(),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'theme',
+                child: Row(
+                  children: [
+                    Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 18),
+                    const SizedBox(width: 12),
+                    Text(isDark ? 'Light Mode' : 'Dark Mode'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'releases',
+                child: Row(
+                  children: [
+                    Icon(Icons.cloud_done_rounded, size: 18),
+                    const SizedBox(width: 12),
+                    Text('Releases'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded, size: 18, color: Colors.redAccent),
+                    const SizedBox(width: 12),
+                    Text('Logout', style: TextStyle(color: Colors.redAccent)),
+                  ],
+                ),
+              ),
+            ],
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Consumer<BankProvider>(
@@ -924,11 +943,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildBankItem('Mpamba', '+265 881 689 220', 'MISHECK CHINUNGA'),
-          const Divider(height: 24, color: Colors.white10),
-          _buildBankItem('Airtel Money', '+265 991 234 567', 'Admin Treasury'),
-          const Divider(height: 24, color: Colors.white10),
           _buildBankItem('National Bank', '10023456789', 'Village Bank Group'),
+          const Divider(height: 24, color: Colors.white10),
+          Text(
+            'For Airtel Money & TNM Mpamba, contact support.',
+            style: TextStyle(
+              fontSize: 10,
+              color: isDark ? BankTheme.textMuted.withOpacity(0.7) : BankTheme.lightTextSecondary.withOpacity(0.7),
+              fontStyle: FontStyle.italic
+            ),
+          ),
         ],
       ),
     );

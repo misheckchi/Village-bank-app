@@ -93,6 +93,15 @@ const PendingPayoutSchema = new mongoose.Schema({
     status: { type: String, default: 'pending' }
 });
 
+const PendingRepaymentSchema = new mongoose.Schema({
+    owner: String,
+    ownerName: String,
+    amount: Number,
+    transactionId: String,
+    date: String,
+    status: { type: String, default: 'pending' }
+});
+
 const MessageSchema = new mongoose.Schema({
     sender: String,
     receiver: String,
@@ -129,6 +138,7 @@ const Transaction = mongoose.model('Transaction', TransactionSchema);
 const PendingDeposit = mongoose.model('PendingDeposit', PendingDepositSchema);
 const PendingLoan = mongoose.model('PendingLoan', PendingLoanSchema);
 const PendingPayout = mongoose.model('PendingPayout', PendingPayoutSchema);
+const PendingRepayment = mongoose.model('PendingRepayment', PendingRepaymentSchema);
 const Message = mongoose.model('Message', MessageSchema);
 const Log = mongoose.model('Log', LogSchema);
 const Release = mongoose.model('Release', ReleaseSchema);
@@ -255,7 +265,7 @@ app.post('/api/member/deposit', async (req, res) => {
             const aiMessage = new Message({
                 sender: 'admin-token',
                 receiver: phone,
-                text: `Hello ${user.name}, I have received your deposit request of MK ${depositAmount}. Please wait for the Admin's verification. Your transaction ID ${transactionId} is now in the queue.`
+                text: `Hello ${user.name}, I have received your deposit request of MK ${depositAmount}. Please wait for the Admin's verification. It usually takes about 10 minutes for an Admin to click "Approve". Your transaction ID ${transactionId} is now in the queue.`
             });
             await aiMessage.save();
         }, 1000);
@@ -304,7 +314,7 @@ app.post('/api/member/loan', async (req, res) => {
             await new Message({
                 sender: 'admin-token',
                 receiver: phone,
-                text: `Loan request for MK ${loanAmount} received. The request has been forwarded to the Admin. Please wait for the Admin's verification and approval.`
+                text: `Loan request for MK ${loanAmount} received. The request has been forwarded to the Admin. Please wait for the Admin's verification and approval. It usually takes about 10 minutes for an Admin to click "Approve".`
             }).save();
         }, 1000);
 
@@ -315,41 +325,38 @@ app.post('/api/member/loan', async (req, res) => {
 });
 
 app.post('/api/member/repay', async (req, res) => {
-    const { phone } = req.body;
+    const { amount, phone, transactionId } = req.body;
     try {
         const user = await User.findOne({ phoneNumber: phone });
         if (!user || user.loan <= 0) return res.status(400).json({ success: false, message: 'No active loans' });
 
-        const principal = user.loan;
-        const interest = user.interest || (principal * INTEREST_RATE);
-        const totalRepayment = principal + interest;
-
-        const memberProfit = principal * 0.30;
-        const bankCut = principal * 0.05;
-
-        await new Transaction({
+        const repaymentAmount = parseFloat(amount);
+        const newPending = new PendingRepayment({
             owner: phone,
-            title: 'Loan Repayment',
-            date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            amount: totalRepayment,
-            type: 'withdrawal'
-        }).save();
+            ownerName: user.name,
+            amount: repaymentAmount,
+            transactionId: transactionId,
+            date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        });
+        await newPending.save();
 
-        user.savings += memberProfit;
-        user.loan = 0;
-        user.interest = 0;
-        await user.save();
-
-        await updateBankFund(bankCut);
-
-        await new Log({
-            title: 'REPAYMENT',
-            desc: `MK ${totalRepayment.toFixed(2)} repaid by ${user.name}`,
+        const newLog = new Log({
+            title: 'REPAYMENT SUBMITTED',
+            desc: `MK ${repaymentAmount} repayment submitted by ${user.name} (ID: ${transactionId})`,
             time: 'Now',
-            type: 'success'
-        }).save();
+            type: 'warning'
+        });
+        await newLog.save();
 
-        res.json({ success: true, message: 'Loan repaid' });
+        setTimeout(async () => {
+            await new Message({
+                sender: 'admin-token',
+                receiver: phone,
+                text: `Hello ${user.name}, I have received your loan repayment request of MK ${repaymentAmount}. Please wait for the Admin's verification. It usually takes about 10 minutes for an Admin to click "Approve". Your transaction ID ${transactionId} is now in the queue.`
+            }).save();
+        }, 1000);
+
+        res.json({ success: true, message: 'Repayment submitted for verification' });
     } catch (e) {
         res.status(500).json({ success: false });
     }
@@ -388,7 +395,7 @@ app.post('/api/member/request-payout', async (req, res) => {
             await new Message({
                 sender: 'admin-token',
                 receiver: phone,
-                text: `Your payout request for MK ${payoutAmount} is being processed. Please wait for the Admin's verification to receive funds on your SIM.`
+                text: `Your payout request for MK ${payoutAmount} is being processed. Please wait for the Admin's verification to receive funds on your SIM. It usually takes about 10 minutes for an Admin to click "Approve".`
             }).save();
         }, 1000);
 
@@ -405,6 +412,7 @@ app.get('/api/admin/overview', async (req, res) => {
         const pLoans = await PendingLoan.countDocuments({ status: 'pending' });
         const pPayouts = await PendingPayout.countDocuments({ status: 'pending' });
         const pDeposits = await PendingDeposit.countDocuments({ status: 'pending' });
+        const pRepayments = await PendingRepayment.countDocuments({ status: 'pending' });
 
         const totalSavings = users.reduce((s, u) => s + u.savings, 0);
         const totalLoans = users.reduce((s, u) => s + u.loan, 0);
@@ -417,9 +425,10 @@ app.get('/api/admin/overview', async (req, res) => {
             totalMembers: users.length,
             groupFund: totalSavings - totalLoans,
             totalLoans: totalLoans,
-            pendingApprovals: pLoans,
+            pendingApprovals: pLoans + pRepayments,
             pendingPayouts: pPayouts,
             pendingDeposits: pDeposits,
+            pendingRepayments: pRepayments,
             highestNet: highestNet,
             bankCommission: bankFund
         });
@@ -535,6 +544,54 @@ app.post('/api/admin/approve-loan', async (req, res) => {
     }
 });
 
+app.get('/api/admin/pending-repayments', async (req, res) => {
+    const data = await PendingRepayment.find({ status: 'pending' });
+    res.json(data);
+});
+
+app.post('/api/admin/approve-repayment', async (req, res) => {
+    const { repaymentId, approve } = req.body;
+    try {
+        const repayment = await PendingRepayment.findById(repaymentId);
+        if (!repayment) return res.status(404).json({ success: false });
+
+        if (approve) {
+            const user = await User.findOne({ phoneNumber: repayment.owner });
+            if (user && user.loan > 0) {
+                const principal = user.loan;
+                const memberProfit = principal * 0.30;
+                const bankCut = principal * 0.05;
+
+                await new Transaction({
+                    owner: user.phoneNumber,
+                    title: 'Loan Repayment Verified',
+                    date: repayment.date,
+                    amount: repayment.amount,
+                    type: 'withdrawal'
+                }).save();
+
+                user.savings += memberProfit;
+                user.loan = 0;
+                user.interest = 0;
+                await user.save();
+
+                await updateBankFund(bankCut);
+
+                await new Log({
+                    title: 'REPAYMENT VERIFIED',
+                    desc: `MK ${repayment.amount.toFixed(2)} repaid by ${user.name} approved.`,
+                    time: 'Now',
+                    type: 'success'
+                }).save();
+            }
+        }
+        await PendingRepayment.findByIdAndDelete(repaymentId);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false });
+    }
+});
+
 app.get('/api/admin/logs', async (req, res) => {
     const logs = await Log.find({}).sort({ timestamp: -1 }).limit(50);
     res.json(logs);
@@ -559,6 +616,7 @@ app.post('/api/admin/reset', async (req, res) => {
     await PendingDeposit.deleteMany({});
     await PendingLoan.deleteMany({});
     await PendingPayout.deleteMany({});
+    await PendingRepayment.deleteMany({});
     await Message.deleteMany({});
     await Log.deleteMany({});
     await Config.deleteMany({});

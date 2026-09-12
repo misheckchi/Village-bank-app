@@ -15,10 +15,10 @@ class Transaction {
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
     return Transaction(
-      id: json['id'],
-      title: json['title'],
-      date: json['date'],
-      amount: (json['amount'] as num).toDouble(),
+      id: json['id'] ?? json['_id'] ?? '',
+      title: json['title'] ?? '',
+      date: json['date'] ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       isDeposit: json['type'] == 'deposit',
     );
   }

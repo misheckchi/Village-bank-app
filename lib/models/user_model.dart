@@ -9,9 +9,9 @@ class UserProfile {
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
-      name: json['name'],
-      role: json['role'],
-      token: json['token'] ?? '',
+      name: json['name'] ?? '',
+      role: json['role'] ?? 'member',
+      token: json['token'] ?? json['phoneNumber'] ?? '',
     );
   }
 }
@@ -35,9 +35,9 @@ class UserInfo {
 
   factory UserInfo.fromJson(Map<String, dynamic> json) {
     return UserInfo(
-      name: json['name'],
-      phoneNumber: json['phoneNumber'],
-      role: json['role'],
+      name: json['name'] ?? '',
+      phoneNumber: json['phoneNumber'] ?? '',
+      role: json['role'] ?? 'member',
       savings: (json['savings'] as num?)?.toDouble() ?? 0.0,
       loan: (json['loan'] as num?)?.toDouble() ?? 0.0,
       interest: (json['interest'] as num?)?.toDouble() ?? 0.0,
@@ -62,8 +62,8 @@ class MemberStats {
 
   factory MemberStats.fromJson(Map<String, dynamic> json) {
     return MemberStats(
-      savings: (json['savings'] as num).toDouble(),
-      loan: (json['loan'] as num).toDouble(),
+      savings: (json['savings'] as num?)?.toDouble() ?? 0.0,
+      loan: (json['loan'] as num?)?.toDouble() ?? 0.0,
       accruedInterest: (json['accruedInterest'] as num?)?.toDouble() ?? 0.0,
       totalToRepay: (json['totalToRepay'] as num?)?.toDouble() ?? 0.0,
       interestRate: (json['interestRate'] as num?)?.toDouble() ?? 35.0,
@@ -90,11 +90,11 @@ class AdminStats {
 
   factory AdminStats.fromJson(Map<String, dynamic> json) {
     return AdminStats(
-      totalMembers: json['totalMembers'],
-      groupFund: (json['groupFund'] as num).toDouble(),
+      totalMembers: json['totalMembers'] ?? 0,
+      groupFund: (json['groupFund'] as num?)?.toDouble() ?? 0.0,
       pendingApprovals: json['pendingApprovals'] ?? 0,
-      totalLoans: (json['totalLoans'] as num).toDouble(),
-      highestNet: (json['highestNet'] as num).toDouble(),
+      totalLoans: (json['totalLoans'] as num?)?.toDouble() ?? 0.0,
+      highestNet: (json['highestNet'] as num?)?.toDouble() ?? 0.0,
       bankCommission: (json['bankCommission'] as num?)?.toDouble() ?? 0.0,
     );
   }
@@ -117,11 +117,11 @@ class PendingLoan {
 
   factory PendingLoan.fromJson(Map<String, dynamic> json) {
     return PendingLoan(
-      id: json['id'],
-      amount: (json['amount'] as num).toDouble(),
+      id: json['id'] ?? json['_id'] ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       interest: (json['interest'] as num?)?.toDouble() ?? 0.0,
-      requestedBy: json['requestedBy'],
-      date: json['date'],
+      requestedBy: json['requestedBy'] ?? '',
+      date: json['date'] ?? '',
     );
   }
 }
@@ -137,11 +137,11 @@ class SystemLog {
 
   factory SystemLog.fromJson(Map<String, dynamic> json) {
     return SystemLog(
-      id: json['id'],
-      title: json['title'],
-      desc: json['desc'],
-      time: json['time'],
-      type: json['type'],
+      id: json['id'] ?? json['_id'] ?? '',
+      title: json['title'] ?? '',
+      desc: json['desc'] ?? '',
+      time: json['time'] ?? '',
+      type: json['type'] ?? 'info',
     );
   }
 }

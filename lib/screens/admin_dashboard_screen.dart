@@ -199,6 +199,59 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _showRepaymentRequestsDialog() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) => Consumer<BankProvider>(
+        builder: (context, provider, child) => AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          title: Text('PENDING REPAYMENTS', style: TextStyle(color: isDark ? Colors.white : BankTheme.lightTextPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: provider.pendingRepayments.isEmpty
+                ? Text('No pending repayments', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary))
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: provider.pendingRepayments.length,
+                    itemBuilder: (context, index) {
+                      final repayment = provider.pendingRepayments[index];
+                      return ListTile(
+                        title: Text('MK ${repayment['amount'].toStringAsFixed(2)}', style: TextStyle(color: isDark ? Colors.white : BankTheme.lightTextPrimary, fontWeight: FontWeight.bold)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('By: ${repayment['ownerName']} (${repayment['owner']})', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontSize: 11)),
+                            Text('TID: ${repayment['transactionId']}', style: const TextStyle(color: BankTheme.accentPurple, fontSize: 11)),
+                          ],
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.verified_rounded, color: Colors.greenAccent),
+                              onPressed: () => provider.processRepayment(repayment['id'] ?? repayment['_id'], true),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.cancel, color: Colors.redAccent),
+                              onPressed: () => provider.processRepayment(repayment['id'] ?? repayment['_id'], false),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('CLOSE', style: TextStyle(color: BankTheme.accentPurple))),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showResetConfirmation() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -240,99 +293,118 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
+        titleSpacing: 0,
         backgroundColor: theme.appBarTheme.backgroundColor,
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
+            const SizedBox(width: 16),
             // Mini Brand Icon
-            Stack(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  child: RichText(
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'V',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1,
-                            color: isDark ? Colors.white : BankTheme.lightTextPrimary,
-                            fontFamily: 'Inter',
-                          ),
-                        ),
-                        const TextSpan(
-                          text: 'B',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1,
-                            color: BankTheme.accentPurple,
-                            fontFamily: 'Inter',
-                          ),
-                        ),
-                      ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                border: Border.all(color: BankTheme.accentPurple, width: 1.5),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: 'V',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : BankTheme.lightTextPrimary,
+                      ),
                     ),
-                  ),
+                    const TextSpan(
+                      text: 'B',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: BankTheme.accentPurple,
+                      ),
+                    ),
+                  ],
                 ),
-                Positioned(top: 0, left: 0, right: 0, child: Container(height: 1.5, color: BankTheme.accentPurple)),
-                Positioned(bottom: 0, left: 0, right: 0, child: Container(height: 1.5, color: BankTheme.accentPurple)),
-                Positioned(left: 0, top: 0, child: Container(width: 1.5, height: 6, color: BankTheme.accentPurple)),
-                Positioned(left: 0, bottom: 0, child: Container(width: 1.5, height: 6, color: BankTheme.accentPurple)),
-                Positioned(right: 0, top: 0, child: Container(width: 1.5, height: 6, color: BankTheme.accentPurple)),
-                Positioned(right: 0, bottom: 0, child: Container(width: 1.5, height: 6, color: BankTheme.accentPurple)),
-              ],
+              ),
             ),
-            const SizedBox(width: 12),
-            Text('Village ', style: TextStyle(fontWeight: FontWeight.bold, color: theme.textTheme.titleLarge?.color)),
-            const Text('Bank', style: TextStyle(fontWeight: FontWeight.bold, color: BankTheme.accentPurple)),
+            const SizedBox(width: 8),
+            Text('Village ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.textTheme.titleLarge?.color)),
+            const Text('Bank', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: BankTheme.accentPurple)),
           ],
         ),
         actions: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.1)),
-            ),
-            child: Row(
-              children: [
-                Text('Admin: ', style: TextStyle(fontSize: 12, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary)),
-                const Text('Active', style: TextStyle(fontSize: 12, color: BankTheme.statusYellow, fontWeight: FontWeight.bold))
-              ],
-            ),
-          ),
           IconButton(
-            icon: Icon(Icons.group_rounded, color: BankTheme.textMuted),
+            icon: Icon(Icons.group_rounded, size: 20, color: BankTheme.textMuted),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (context) => const ChatScreen(otherUserPhone: 'group', otherUserName: 'Community Group Chat'),
             )),
           ),
-          IconButton(
-            icon: const Icon(Icons.cloud_done_rounded, color: BankTheme.textMuted),
-            tooltip: 'Release Records',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (context) => const ReleaseHistoryScreen(),
-            )),
-          ),
-          IconButton(
-            icon: Icon(
-              provider.themeMode == ThemeMode.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              color: BankTheme.textMuted,
-            ),
-            onPressed: () => provider.toggleTheme(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.power_settings_new_rounded, color: BankTheme.textMuted),
-            onPressed: () {
-              Provider.of<BankProvider>(context, listen: false).logout();
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const AuthScreen()),
-                (route) => false,
-              );
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert_rounded, color: BankTheme.textMuted),
+            onSelected: (value) {
+              if (value == 'theme') {
+                provider.toggleTheme();
+              } else if (value == 'releases') {
+                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const ReleaseHistoryScreen()));
+              } else if (value == 'logout') {
+                Provider.of<BankProvider>(context, listen: false).logout();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const AuthScreen()),
+                  (route) => false,
+                );
+              }
             },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Administrator',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    Text(
+                      'Status: Active',
+                      style: TextStyle(fontSize: 10, color: BankTheme.statusYellow),
+                    ),
+                    Divider(),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'theme',
+                child: Row(
+                  children: [
+                    Icon(provider.themeMode == ThemeMode.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 18),
+                    const SizedBox(width: 12),
+                    Text(provider.themeMode == ThemeMode.dark ? 'Light Mode' : 'Dark Mode'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'releases',
+                child: Row(
+                  children: [
+                    Icon(Icons.cloud_done_rounded, size: 18),
+                    const SizedBox(width: 12),
+                    Text('Releases'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.power_settings_new_rounded, size: 18, color: Colors.redAccent),
+                    const SizedBox(width: 12),
+                    Text('Logout', style: TextStyle(color: Colors.redAccent)),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 8),
         ],
@@ -584,11 +656,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                   const SizedBox(width: 16),
                   _buildActionTile(
+                    Icons.price_check_rounded, 
+                    'REPAYMENTS', 
+                    '${provider.pendingRepayments.length} PENDING',
+                    onTap: _showRepaymentRequestsDialog,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _buildActionTile(
                     Icons.bar_chart, 
                     'ANALYTICS', 
                     'REAL-TIME',
                     onTap: () => setState(() => _activeTabIndex = 4),
                   ),
+                  const SizedBox(width: 16),
+                  const Expanded(child: SizedBox()),
                 ],
               ),
               const SizedBox(height: 32),

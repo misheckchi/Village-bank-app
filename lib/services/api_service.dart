@@ -10,7 +10,7 @@ import '../models/release_record.dart';
 
 class ApiService {
   static const String _pcIp = "172.20.10.12";
-  static const String _productionUrl = "https://village-bank-app.onrender.com/api";
+  static const String _productionUrl = "https://village-bank-app-api.onrender.com/api";
   static const bool _isProduction = true; // Set to true when you deploy!
 
   static String get baseUrl {
@@ -150,6 +150,18 @@ class ApiService {
     return [];
   }
 
+  Future<List<dynamic>> fetchPendingRepayments() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/admin/pending-repayments'));
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {
+      print('Fetch Pending Repayments Error: $e');
+    }
+    return [];
+  }
+
   Future<bool> approveLoan(String loanId, bool approve) async {
     try {
       final response = await http.post(
@@ -189,6 +201,19 @@ class ApiService {
     }
   }
 
+  Future<bool> approveRepayment(String repaymentId, bool approve) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/admin/approve-repayment'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'repaymentId': repaymentId, 'approve': approve}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<bool> deposit(double amount, String token, String transactionId) async {
     try {
       final response = await http.post(
@@ -219,12 +244,16 @@ class ApiService {
     }
   }
 
-  Future<bool> repayLoan(String token) async {
+  Future<bool> repayLoan(double amount, String token, String transactionId) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/member/repay'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'phone': token}),
+        body: json.encode({
+          'amount': amount,
+          'phone': token,
+          'transactionId': transactionId,
+        }),
       );
       return response.statusCode == 200;
     } catch (e) {
