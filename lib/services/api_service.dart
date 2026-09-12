@@ -162,30 +162,32 @@ class ApiService {
     return [];
   }
 
-  Future<bool> approveLoan(String loanId, bool approve) async {
+  Future<Map<String, dynamic>?> approveLoan(String loanId, bool approve) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/admin/approve-loan'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'loanId': loanId, 'approve': approve}),
       );
-      return response.statusCode == 200;
-    } catch (e) {
-      return false;
-    }
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {}
+    return null;
   }
 
-  Future<bool> processPayout(String payoutId, bool confirm) async {
+  Future<Map<String, dynamic>?> processPayout(String payoutId, bool confirm) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/admin/process-payout'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'payoutId': payoutId, 'confirm': confirm}),
       );
-      return response.statusCode == 200;
-    } catch (e) {
-      return false;
-    }
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {}
+    return null;
   }
 
   Future<bool> approveDeposit(String depositId, bool approve) async {
@@ -231,12 +233,12 @@ class ApiService {
     }
   }
 
-  Future<bool> requestLoan(double amount, String token) async {
+  Future<bool> requestLoan(double amount, String token, String receivingAccount) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/member/loan'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'amount': amount, 'phone': token}),
+        body: json.encode({'amount': amount, 'phone': token, 'receivingAccount': receivingAccount}),
       );
       return response.statusCode == 200;
     } catch (e) {
@@ -261,11 +263,12 @@ class ApiService {
     }
   }
 
-  Future<bool> requestPayout(double amount, String token) async {
+  Future<bool> requestPayout(double amount, String token, String receivingAccount) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/member/request-payout'),
         headers: {'Content-Type': 'application/json'},
+        body: json.encode({'amount': amount, 'phone': token, 'receivingAccount': receivingAccount}),
         body: json.encode({'amount': amount, 'phone': token}),
       );
       return response.statusCode == 200;

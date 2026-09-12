@@ -177,6 +177,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _showLoanDialog() {
     final TextEditingController amountController = TextEditingController();
+    final TextEditingController accountController = TextEditingController();
     final provider = Provider.of<BankProvider>(context, listen: false);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -202,6 +203,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 labelText: 'AMOUNT',
               ),
             ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: accountController,
+              style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+              decoration: const InputDecoration(
+                labelText: 'RECEIVING ACCOUNT / PHONE NUMBER',
+                hintText: 'e.g. National Bank No or Phone',
+              ),
+            ),
           ],
         ),
         actions: [
@@ -213,13 +223,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: ElevatedButton.styleFrom(minimumSize: const Size(120, 45)),
             onPressed: () async {
               final amount = double.tryParse(amountController.text);
-              if (amount != null && amount > 0) {
-                final success = await provider.makeLoanRequest(amount);
+              final receivingAcc = accountController.text.trim();
+              if (amount != null && amount > 0 && receivingAcc.isNotEmpty) {
+                final success = await provider.makeLoanRequest(amount, receivingAcc);
                 if (!mounted) return;
                 Navigator.pop(context);
                 if (!success) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(provider.errorMessage ?? 'Loan request failed')));
                 }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please specify receiving account/phone number')));
               }
             },
             child: const Text('REQUEST'),
@@ -511,6 +524,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final double totalSavings = provider.memberStats?.savings ?? 0.0;
     final TextEditingController amountController = TextEditingController(text: totalSavings.toStringAsFixed(2));
+    final TextEditingController accountController = TextEditingController();
 
     showDialog(
       context: context,
@@ -522,7 +536,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Request your savings to be sent to your SIM.', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontSize: 12)),
+            Text('Request your savings to be sent to your choice account.', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontSize: 12)),
             const SizedBox(height: 20),
             TextField(
               controller: amountController,
@@ -532,6 +546,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               decoration: const InputDecoration(
                 prefixText: 'MK ',
                 labelText: 'AMOUNT',
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: accountController,
+              style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+              decoration: const InputDecoration(
+                labelText: 'RECEIVING ACCOUNT / PHONE NUMBER',
+                hintText: 'e.g. National Bank No or Phone',
               ),
             ),
             const SizedBox(height: 12),
@@ -547,8 +570,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: ElevatedButton.styleFrom(minimumSize: const Size(120, 45), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.black),
             onPressed: () async {
               final amount = double.tryParse(amountController.text);
-              if (amount != null && amount > 0 && amount <= totalSavings) {
-                final success = await provider.requestPayout(amount);
+              final receivingAcc = accountController.text.trim();
+              if (amount != null && amount > 0 && amount <= totalSavings && receivingAcc.isNotEmpty) {
+                final success = await provider.requestPayout(amount, receivingAcc);
                 if (!mounted) return;
                 Navigator.pop(context);
                 if (success) {
@@ -560,6 +584,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   );
                 }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please verify fields and ensure details are specified.')));
               }
             },
             child: const Text('REQUEST'),

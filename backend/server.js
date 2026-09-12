@@ -81,6 +81,7 @@ const PendingLoanSchema = new mongoose.Schema({
     interest: Number,
     requestedBy: String,
     requestedByPhone: String,
+    receivingAccount: { type: String, default: '' },
     date: String,
     status: { type: String, default: 'pending' }
 });
@@ -89,6 +90,7 @@ const PendingPayoutSchema = new mongoose.Schema({
     amount: Number,
     requestedBy: String,
     requestedByPhone: String,
+    receivingAccount: { type: String, default: '' },
     date: String,
     status: { type: String, default: 'pending' }
 });
@@ -277,7 +279,7 @@ app.post('/api/member/deposit', async (req, res) => {
 });
 
 app.post('/api/member/loan', async (req, res) => {
-    const { amount, phone } = req.body;
+    const { amount, phone, receivingAccount } = req.body;
     try {
         const user = await User.findOne({ phoneNumber: phone });
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -299,6 +301,7 @@ app.post('/api/member/loan', async (req, res) => {
             interest: loanAmount * INTEREST_RATE,
             requestedBy: user.name,
             requestedByPhone: phone,
+            receivingAccount: receivingAccount || '',
             date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
         });
         await newLoan.save();
@@ -363,7 +366,7 @@ app.post('/api/member/repay', async (req, res) => {
 });
 
 app.post('/api/member/request-payout', async (req, res) => {
-    const { amount, phone } = req.body;
+    const { amount, phone, receivingAccount } = req.body;
     try {
         const user = await User.findOne({ phoneNumber: phone });
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -377,6 +380,7 @@ app.post('/api/member/request-payout', async (req, res) => {
             amount: payoutAmount,
             requestedBy: user.name,
             requestedByPhone: phone,
+            receivingAccount: receivingAccount || '',
             date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
         });
         await newPayout.save();
@@ -496,6 +500,8 @@ app.post('/api/admin/process-payout', async (req, res) => {
                 amount: payout.amount,
                 type: 'withdrawal'
             }).save();
+            await PendingPayout.findByIdAndDelete(payoutId);
+            return res.json({ success: true, phone: payout.receivingAccount || payout.requestedByPhone, amount: payout.amount });
         } else {
             const user = await User.findOne({ phoneNumber: payout.requestedByPhone });
             if (user) {
@@ -535,6 +541,10 @@ app.post('/api/admin/approve-loan', async (req, res) => {
                     amount: loan.amount,
                     type: 'deposit'
                 }).save();
+
+                // Return receiving account number/phone number and amount so frontend can trigger a National Bank USSD dialer
+                await PendingLoan.findByIdAndDelete(loanId);
+                return res.json({ success: true, phone: loan.receivingAccount || user.phoneNumber, amount: loan.amount });
             }
         }
         await PendingLoan.findByIdAndDelete(loanId);

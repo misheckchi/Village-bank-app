@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
 import '../services/bank_provider.dart';
 import '../utils/theme.dart';
@@ -55,7 +56,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.check_circle, color: Colors.greenAccent),
-                              onPressed: () => provider.processLoan(loan.id, true),
+                              onPressed: () async {
+                                final res = await provider.processLoan(loan.id, true);
+                                if (res != null && res['phone'] != null) {
+                                  final targetAccount = res['phone'];
+                                  final amount = res['amount'];
+                                  // National Bank of Malawi default bank transaction transfer USSD template
+                                  final ussdCode = "*626*5*1*$targetAccount*$amount#";
+                                  final Uri telUri = Uri.parse("tel:${ussdCode.replaceAll('#', '%23')}");
+                                  
+                                  if (await canLaunchUrl(telUri)) {
+                                    await launchUrl(telUri);
+                                  }
+                                }
+                              },
                             ),
                             IconButton(
                               icon: const Icon(Icons.cancel, color: Colors.redAccent),
@@ -106,23 +120,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               onPressed: () async {
                                 final phone = payout['requestedByPhone'];
                                 final amount = payout['amount'];
-                                // USSD Code to SEND money from Admin to Member
-                                final ussdCode = "*211*1*$phone*$amount#";
-                                final Uri telUri = Uri.parse("tel:${ussdCode.replaceAll('#', '%23')}");
-
-                                // Launch USSD dialer for Treasurer
-                                if (await provider.processPayout(payout['id'], true)) {
-                                  // ignore: use_build_context_synchronously
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Processing payout for $phone...')));
-                                  // Note: Actual USSD call should happen from the device
-                                  // For simulation, we just launch the dialer
-                                  // await launchUrl(telUri);
+                                
+                                final res = await provider.processPayout(payout['id'] ?? payout['_id'] ?? '', true);
+                                if (res != null && res['phone'] != null) {
+                                  final targetAccount = res['phone'];
+                                  // National Bank of Malawi default bank transaction transfer USSD template
+                                  final ussdCode = "*626*5*1*$targetAccount*$amount#";
+                                  final Uri telUri = Uri.parse("tel:${ussdCode.replaceAll('#', '%23')}");
+                                  
+                                  if (await canLaunchUrl(telUri)) {
+                                    await launchUrl(telUri);
+                                  }
                                 }
                               },
                             ),
                             IconButton(
                               icon: const Icon(Icons.cancel, color: Colors.redAccent),
-                              onPressed: () => provider.processPayout(payout['id'], false),
+                              onPressed: () => provider.processPayout(payout['id'] ?? payout['_id'] ?? '', false),
                             ),
                           ],
                         ),
@@ -165,7 +179,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             Text('By: ${deposit['ownerName']} (${deposit['owner']})', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontSize: 11)),
                             GestureDetector(
                               onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                                builder: (context) => ChatScreen(otherUserPhone: deposit['owner'], otherUserName: deposit['ownerName']),
+                                builder: (context) => ChatScreen(otherUserPhone: deposit['owner'] ?? '', otherUserName: deposit['ownerName'] ?? ''),
                               )),
                               child: const Padding(
                                 padding: EdgeInsets.only(top: 4.0),
@@ -179,11 +193,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.verified_rounded, color: Colors.greenAccent),
-                              onPressed: () => provider.processDeposit(deposit['id'], true),
+                              onPressed: () => provider.processDeposit(deposit['id'] ?? deposit['_id'] ?? '', true),
                             ),
                             IconButton(
                               icon: const Icon(Icons.cancel, color: Colors.redAccent),
-                              onPressed: () => provider.processDeposit(deposit['id'], false),
+                              onPressed: () => provider.processDeposit(deposit['id'] ?? deposit['_id'] ?? '', false),
                             ),
                           ],
                         ),

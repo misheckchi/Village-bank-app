@@ -209,22 +209,24 @@ class BankProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> processLoan(String loanId, bool approve) async {
-    final success = await _apiService.approveLoan(loanId, approve);
-    if (success) {
+  Future<Map<String, dynamic>?> processLoan(String loanId, bool approve) async {
+    final res = await _apiService.approveLoan(loanId, approve);
+    if (res != null && res['success'] == true) {
       NotificationService.playTransactionSound();
       await refreshAdminData();
+      return res;
     }
-    return success;
+    return null;
   }
 
-  Future<bool> processPayout(String payoutId, bool confirm) async {
-    final success = await _apiService.processPayout(payoutId, confirm);
-    if (success) {
+  Future<Map<String, dynamic>?> processPayout(String payoutId, bool confirm) async {
+    final res = await _apiService.processPayout(payoutId, confirm);
+    if (res != null && res['success'] == true) {
       NotificationService.playTransactionSound();
       await refreshAdminData();
+      return res;
     }
-    return success;
+    return null;
   }
 
   Future<bool> processDeposit(String depositId, bool approve) async {
@@ -255,9 +257,9 @@ class BankProvider with ChangeNotifier {
     return success;
   }
 
-  Future<bool> makeLoanRequest(double amount) async {
+  Future<bool> makeLoanRequest(double amount, String receivingAccount) async {
     if (_user == null) return false;
-    final success = await _apiService.requestLoan(amount, _user!.token);
+    final success = await _apiService.requestLoan(amount, _user!.token, receivingAccount);
     if (success) {
       NotificationService.playTransactionSound();
       await refreshMemberData();
@@ -275,9 +277,9 @@ class BankProvider with ChangeNotifier {
     return success;
   }
 
-  Future<bool> requestPayout(double amount) async {
+  Future<bool> requestPayout(double amount, String receivingAccount) async {
     if (_user == null) return false;
-    final success = await _apiService.requestPayout(amount, _user!.token);
+    final success = await _apiService.requestPayout(amount, _user!.token, receivingAccount);
     if (success) {
       NotificationService.playTransactionSound();
       await refreshMemberData();

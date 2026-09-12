@@ -107,12 +107,15 @@ class PendingLoan {
   final String requestedBy;
   final String date;
 
+  final String receivingAccount;
+
   PendingLoan({
     required this.id,
     required this.amount,
     required this.interest,
     required this.requestedBy,
     required this.date,
+    required this.receivingAccount,
   });
 
   factory PendingLoan.fromJson(Map<String, dynamic> json) {
@@ -122,6 +125,7 @@ class PendingLoan {
       interest: (json['interest'] as num?)?.toDouble() ?? 0.0,
       requestedBy: json['requestedBy'] ?? '',
       date: json['date'] ?? '',
+      receivingAccount: json['receivingAccount'] ?? '',
     );
   }
 }
