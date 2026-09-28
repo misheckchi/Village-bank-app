@@ -233,16 +233,21 @@ class ApiService {
     }
   }
 
-  Future<bool> requestLoan(double amount, String token, String receivingAccount) async {
+  Future<Map<String, dynamic>> requestLoan(double amount, String token, String receivingAccount) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/member/loan'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'amount': amount, 'phone': token, 'receivingAccount': receivingAccount}),
       );
-      return response.statusCode == 200;
+      final data = json.decode(response.body);
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {'success': true, 'message': data['message'] ?? 'Loan requested successfully'};
+      } else {
+        return {'success': false, 'message': data['message'] ?? 'Failed to request loan'};
+      }
     } catch (e) {
-      return false;
+      return {'success': false, 'message': 'Network error. Please try again.'};
     }
   }
 
@@ -269,7 +274,6 @@ class ApiService {
         Uri.parse('$baseUrl/member/request-payout'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'amount': amount, 'phone': token, 'receivingAccount': receivingAccount}),
-        body: json.encode({'amount': amount, 'phone': token}),
       );
       return response.statusCode == 200;
     } catch (e) {

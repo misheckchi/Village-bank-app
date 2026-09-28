@@ -51,6 +51,7 @@ class MemberStats {
   final double accruedInterest;
   final double totalToRepay;
   final double interestRate;
+  final int pendingLoanCount;
 
   MemberStats({
     required this.savings,
@@ -58,6 +59,7 @@ class MemberStats {
     required this.accruedInterest,
     required this.totalToRepay,
     required this.interestRate,
+    this.pendingLoanCount = 0,
   });
 
   factory MemberStats.fromJson(Map<String, dynamic> json) {
@@ -67,6 +69,7 @@ class MemberStats {
       accruedInterest: (json['accruedInterest'] as num?)?.toDouble() ?? 0.0,
       totalToRepay: (json['totalToRepay'] as num?)?.toDouble() ?? 0.0,
       interestRate: (json['interestRate'] as num?)?.toDouble() ?? 35.0,
+      pendingLoanCount: json['pendingLoanCount'] ?? 0,
     );
   }
 }

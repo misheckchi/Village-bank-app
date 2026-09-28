@@ -23,6 +23,11 @@ subprojects {
     plugins.withType<com.android.build.gradle.BasePlugin> {
         extensions.configure<com.android.build.gradle.BaseExtension> {
             ndkVersion = "25.1.8937393"
+            
+            // Fix for older plugins like 'telephony' that don't specify a namespace
+            if (project.name == "telephony") {
+                namespace = "com.shounakmulay.telephony"
+            }
         }
     }
 }

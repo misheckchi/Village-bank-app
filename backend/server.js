@@ -215,13 +215,15 @@ app.get('/api/member/summary', async (req, res) => {
         const user = await User.findOne({ phoneNumber: phone });
         if (!user) return res.status(404).json({ message: 'User not found' });
 
+        const pendingLoanCount = await PendingLoan.countDocuments({ requestedByPhone: phone, status: 'pending' });
         const accruedInterest = user.interest !== undefined ? user.interest : (user.loan * INTEREST_RATE);
         res.json({
             savings: user.savings,
             loan: user.loan,
             accruedInterest: accruedInterest,
             totalToRepay: user.loan + accruedInterest,
-            interestRate: INTEREST_RATE * 100
+            interestRate: INTEREST_RATE * 100,
+            pendingLoanCount: pendingLoanCount
         });
     } catch (e) {
         res.status(500).json({ message: 'Error' });
@@ -283,6 +285,11 @@ app.post('/api/member/loan', async (req, res) => {
     try {
         const user = await User.findOne({ phoneNumber: phone });
         if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const pendingLoanCount = await PendingLoan.countDocuments({ requestedByPhone: phone, status: 'pending' });
+        if (pendingLoanCount >= 3) {
+            return res.status(400).json({ success: false, message: 'Loan request limit reached. Maximum 3 active loan requests allowed.' });
+        }
 
         const loanAmount = parseFloat(amount);
 

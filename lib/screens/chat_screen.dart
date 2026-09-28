@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/chat_message.dart';
 import '../services/bank_provider.dart';
 import '../services/notification_service.dart';
@@ -185,6 +186,20 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _callAdmin() async {
+    const String adminPhone = '0881689220';
+    final Uri telUri = Uri.parse('tel:$adminPhone');
+    if (await canLaunchUrl(telUri)) {
+      await launchUrl(telUri);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not launch dialer for 0881689220')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -206,6 +221,14 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.phone_rounded, color: Colors.greenAccent),
+            tooltip: 'Call Admin Direct',
+            onPressed: _callAdmin,
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Column(
         children: [
@@ -237,60 +260,79 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           if (isGroup && !isMe)
             Padding(
-              padding: const EdgeInsets.only(left: 4, bottom: 2),
+              padding: const EdgeInsets.only(left: 6, bottom: 4),
               child: Text(
-                msg.sender == 'admin-token' ? 'Admin' : 'Member ${msg.sender.substring(msg.sender.length - 4)}',
-                style: TextStyle(fontSize: 10, color: BankTheme.accentPurple, fontWeight: FontWeight.bold),
+                msg.sender == 'admin-token' ? '👑 Admin' : '👤 Member ${msg.sender.substring(msg.sender.length - 4)}',
+                style: const TextStyle(fontSize: 11, color: BankTheme.accentPurple, fontWeight: FontWeight.bold),
               ),
             ),
           Container(
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.symmetric(vertical: 3),
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: isMe
                   ? BankTheme.accentPurple
-                  : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+                  : (isDark ? const Color(0xFF1E1E24) : const Color(0xFFE2E8F0)),
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(16),
                 topRight: const Radius.circular(16),
-                bottomLeft: Radius.circular(isMe ? 16 : 0),
-                bottomRight: Radius.circular(isMe ? 0 : 16),
+                bottomLeft: Radius.circular(isMe ? 16 : 4),
+                bottomRight: Radius.circular(isMe ? 4 : 16),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
+                )
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (msg.imageUrl != null) ...[
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(msg.imageUrl!, fit: BoxFit.cover),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      msg.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        // Fallback icon if image fails to download
+                        child: Icon(Icons.broken_image_rounded, color: Colors.grey),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                 ],
                 if (msg.transactionId != null) ...[
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.black26,
+                      color: Colors.black.withOpacity(0.25),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: BankTheme.statusYellow.withOpacity(0.3)),
+                      border: Border.all(color: BankTheme.statusYellow.withOpacity(0.2)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.receipt_long, color: BankTheme.statusYellow, size: 14),
-                        const SizedBox(width: 8),
+                        const Icon(Icons.receipt_long, color: BankTheme.statusYellow, size: 13),
+                        const SizedBox(width: 6),
                         Text('TX ID: ${msg.transactionId}',
-                          style: const TextStyle(color: BankTheme.statusYellow, fontSize: 11, fontWeight: FontWeight.bold)),
+                          style: const TextStyle(color: BankTheme.statusYellow, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                 ],
                 Text(
                   msg.text,
-                  style: TextStyle(color: isMe ? Colors.white : (isDark ? Colors.white : Colors.black87)),
+                  style: TextStyle(
+                    color: isMe ? Colors.white : (isDark ? const Color(0xFFE4E4E7) : Colors.black87),
+                    fontSize: 14.5,
+                    height: 1.3,
+                  ),
                 ),
               ],
             ),
@@ -302,33 +344,56 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildInputArea(bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark ? Colors.black26 : Colors.white,
-        border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
+        color: isDark ? const Color(0xFF16161A) : Colors.white,
+        border: Border(top: BorderSide(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black12)),
       ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.image, color: BankTheme.accentPurple),
-            onPressed: _showImageSourceSheet,
-          ),
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              decoration: const InputDecoration(
-                hintText: 'Type a message...',
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 16),
+      child: SafeArea(
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF1F5F9),
+              child: IconButton(
+                icon: const Icon(Icons.add_photo_alternate_rounded, color: BankTheme.accentPurple, size: 20),
+                onPressed: _showImageSourceSheet,
               ),
-              onSubmitted: (_) => _sendMessage(),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.send_rounded, color: BankTheme.accentPurple),
-            onPressed: _sendMessage,
-          ),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.transparent),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  controller: _messageController,
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                  decoration: const InputDecoration(
+                    hintText: 'Type a message...',
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  onSubmitted: (_) => _sendMessage(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: BankTheme.accentPurple,
+              child: IconButton(
+                icon: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                onPressed: _sendMessage,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

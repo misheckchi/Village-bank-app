@@ -259,12 +259,16 @@ class BankProvider with ChangeNotifier {
 
   Future<bool> makeLoanRequest(double amount, String receivingAccount) async {
     if (_user == null) return false;
-    final success = await _apiService.requestLoan(amount, _user!.token, receivingAccount);
-    if (success) {
+    final res = await _apiService.requestLoan(amount, _user!.token, receivingAccount);
+    if (res['success'] == true) {
       NotificationService.playTransactionSound();
       await refreshMemberData();
+      return true;
+    } else {
+      _errorMessage = res['message'];
+      notifyListeners();
+      return false;
     }
-    return success;
   }
 
   Future<bool> repayLoan(double amount, String transactionId) async {

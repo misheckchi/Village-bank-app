@@ -176,12 +176,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  void _callAdmin() async {
+    const String adminPhone = "0881689220";
+    final Uri telUri = Uri.parse("tel:$adminPhone");
+    if (await canLaunchUrl(telUri)) {
+      await launchUrl(telUri);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not launch phone dialer for 0881689220')),
+        );
+      }
+    }
+  }
+
   void _showLoanDialog() {
     final TextEditingController amountController = TextEditingController();
     final TextEditingController accountController = TextEditingController();
     final provider = Provider.of<BankProvider>(context, listen: false);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final int pendingCount = provider.memberStats?.pendingLoanCount ?? 0;
 
     showDialog(
       context: context,
@@ -191,9 +206,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: Text('REQUEST LOAN', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Request a loan from the community pool.', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontSize: 12)),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: pendingCount >= 3 ? Colors.redAccent.withOpacity(0.1) : BankTheme.accentPurple.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: pendingCount >= 3 ? Colors.redAccent : BankTheme.accentPurple.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Active Loan Requests Limit:', style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : BankTheme.lightTextSecondary)),
+                  Text(
+                    '$pendingCount / 3',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: pendingCount >= 3 ? Colors.redAccent : BankTheme.accentPurple,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             TextField(
               controller: amountController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -223,6 +262,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(minimumSize: const Size(120, 45)),
             onPressed: () async {
+              if (pendingCount >= 3) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Maximum loan request limit (3) reached. Please wait for previous requests to be processed.'))
+                );
+                return;
+              }
               final amount = double.tryParse(amountController.text);
               final receivingAcc = accountController.text.trim();
               if (amount != null && amount > 0 && receivingAcc.isNotEmpty) {
@@ -647,6 +692,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.phone_rounded, size: 20, color: Colors.greenAccent),
+            tooltip: 'Call Admin Direct',
+            onPressed: _callAdmin,
+          ),
+          IconButton(
             icon: Icon(Icons.group_rounded, size: 20, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (context) => const ChatScreen(otherUserPhone: 'group', otherUserName: 'Community Group Chat'),
@@ -833,16 +883,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             Expanded(child: ElevatedButton(onPressed: _showDepositDialog, child: const Text('Deposit Funds'))),
                             const SizedBox(width: 12),
-                            if (stats != null && stats.loan > 0)
-                              Expanded(child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black),
-                                onPressed: _showRepayDialog, 
-                                child: const Text('Repay Loan')
-                              ))
-                            else
-                              Expanded(child: OutlinedButton(onPressed: _showLoanDialog, child: const Text('Request Loan'))),
+                            Expanded(child: OutlinedButton(
+                              onPressed: _showLoanDialog,
+                              child: Text(
+                                stats != null && stats.loan > 0 
+                                  ? 'Request Loan (${stats.pendingLoanCount}/3)' 
+                                  : 'Request Loan',
+                              ),
+                            )),
                           ],
                         ),
+                        if (stats != null && stats.loan > 0) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black),
+                              onPressed: _showRepayDialog, 
+                              child: const Text('Repay Active Loan'),
+                            ),
+                          ),
+                        ],
                         if (stats != null && stats.savings > 0) ...[
                           const SizedBox(height: 12),
                           SizedBox(
@@ -974,8 +1035,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 16),
           _buildBankItem('National Bank', '10023456789', 'Village Bank Group'),
           const Divider(height: 24, color: Colors.white10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.greenAccent,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              icon: const Icon(Icons.phone_rounded, color: Colors.black, size: 20),
+              label: const Text('CALL ADMIN DIRECTLY (0881689220)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              onPressed: _callAdmin,
+            ),
+          ),
+          const SizedBox(height: 8),
           Text(
-            'For Airtel Money & TNM Mpamba, contact support.',
+            'For Airtel Money & TNM Mpamba, contact support or call directly.',
             style: TextStyle(
               fontSize: 10,
               color: isDark ? BankTheme.textMuted.withOpacity(0.7) : BankTheme.lightTextSecondary.withOpacity(0.7),
