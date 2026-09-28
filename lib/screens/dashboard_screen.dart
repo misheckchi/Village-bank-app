@@ -14,6 +14,8 @@ import '../widgets/bank_bar_chart.dart';
 import 'auth_screen.dart';
 import 'chat_screen.dart';
 import 'release_history_screen.dart';
+import 'global_analytics_screen.dart';
+import 'global_community_thread_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -643,6 +645,203 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  void _showInstantWithdrawDialog() {
+    final provider = Provider.of<BankProvider>(context, listen: false);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final double unwithdrawn = provider.memberStats?.unwithdrawnLoan ?? 0.0;
+    final String defaultPhone = provider.user?.token ?? '';
+
+    final TextEditingController amountController = TextEditingController(text: unwithdrawn > 0 ? unwithdrawn.toStringAsFixed(2) : '');
+    final TextEditingController phoneController = TextEditingController(text: defaultPhone);
+    String selectedMethod = 'TNM Mpamba';
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: [
+              const Icon(Icons.flash_on_rounded, color: Colors.greenAccent),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'INSTANT LOAN WITHDRAWAL',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    letterSpacing: 1,
+                    color: isDark ? Colors.white : BankTheme.lightTextPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.greenAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.verified_user_rounded, color: Colors.greenAccent, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'No Admin Approval Needed! Available Borrowed Cash in Account: MK ${unwithdrawn.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white70 : BankTheme.lightTextSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('WITHDRAWAL METHOD', style: TextStyle(fontSize: 10, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary)),
+                DropdownButton<String>(
+                  value: selectedMethod,
+                  isExpanded: true,
+                  dropdownColor: theme.colorScheme.surface,
+                  items: ['TNM Mpamba', 'Airtel Money', 'National Bank (626)'].map((String value) {
+                    final branding = _paymentBranding[value];
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: branding?['color']?.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            padding: const EdgeInsets.all(2),
+                            child: branding != null
+                              ? Image.network(
+                                  branding['logo'],
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (c, e, s) => Icon(Icons.account_balance_wallet, size: 12, color: branding['color']),
+                                )
+                              : const Icon(Icons.account_balance_wallet, size: 12),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(value, style: TextStyle(color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (newValue) {
+                    if (newValue != null) {
+                      setDialogState(() {
+                        selectedMethod = newValue;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: amountController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+                  decoration: const InputDecoration(
+                    prefixText: 'MK ',
+                    labelText: 'WITHDRAWAL AMOUNT',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: phoneController,
+                  style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+                  decoration: const InputDecoration(
+                    labelText: 'RECEIVING TNM / AIRTEL NUMBER',
+                    hintText: 'e.g. 088xxxxxxx or 099xxxxxxx',
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '* You can specify any TNM or Airtel number to receive cash without changing SIM cards.',
+                  style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('CANCEL', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(140, 45),
+                backgroundColor: Colors.greenAccent,
+                foregroundColor: Colors.black,
+              ),
+              icon: const Icon(Icons.flash_on_rounded, size: 18),
+              label: const Text('WITHDRAW NOW'),
+              onPressed: () async {
+                final amount = double.tryParse(amountController.text);
+                final receivingPhone = phoneController.text.trim();
+
+                if (amount == null || amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid amount.')));
+                  return;
+                }
+
+                if (amount > unwithdrawn) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Amount exceeds available borrowed cash (MK ${unwithdrawn.toStringAsFixed(2)})')));
+                  return;
+                }
+
+                if (receivingPhone.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please specify receiving phone number.')));
+                  return;
+                }
+
+                final success = await provider.instantWithdrawLoan(
+                  amount: amount,
+                  paymentMethod: selectedMethod,
+                  receivingPhone: receivingPhone,
+                );
+
+                if (!mounted) return;
+                Navigator.pop(context);
+
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      backgroundColor: Colors.greenAccent,
+                      behavior: SnackBarBehavior.floating,
+                      content: Text(
+                        'MK ${amount.toStringAsFixed(2)} instantly transferred to $receivingPhone via $selectedMethod!',
+                        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(provider.errorMessage ?? 'Withdrawal failed.')),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -692,6 +891,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.hub_rounded, size: 20, color: BankTheme.accentPurple),
+            tooltip: 'Global Analytics',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (context) => const GlobalAnalyticsScreen(),
+            )),
+          ),
+          IconButton(
+            icon: const Icon(Icons.forum_rounded, size: 20, color: Colors.amberAccent),
+            tooltip: 'Global Idea Forum',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (context) => const GlobalCommunityThreadScreen(),
+            )),
+          ),
+          IconButton(
             icon: const Icon(Icons.phone_rounded, size: 20, color: Colors.greenAccent),
             tooltip: 'Call Admin Direct',
             onPressed: _callAdmin,
@@ -711,7 +924,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert_rounded, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
             onSelected: (value) {
-              if (value == 'theme') {
+              if (value == 'analytics') {
+                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const GlobalAnalyticsScreen()));
+              } else if (value == 'forum') {
+                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const GlobalCommunityThreadScreen()));
+              } else if (value == 'theme') {
                 Provider.of<BankProvider>(context, listen: false).toggleTheme();
               } else if (value == 'releases') {
                 Navigator.of(context).push(MaterialPageRoute(builder: (context) => const ReleaseHistoryScreen()));
@@ -742,6 +959,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       style: const TextStyle(fontSize: 10, color: BankTheme.statusYellow),
                     ),
                     const Divider(),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'analytics',
+                child: Row(
+                  children: [
+                    Icon(Icons.hub_rounded, size: 18, color: BankTheme.accentPurple),
+                    SizedBox(width: 12),
+                    Text('Global Analytics'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'forum',
+                child: Row(
+                  children: [
+                    Icon(Icons.forum_rounded, size: 18, color: Colors.amberAccent),
+                    SizedBox(width: 12),
+                    Text('Global Forum'),
                   ],
                 ),
               ),
@@ -820,8 +1057,101 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       _buildStatCard('Total Savings', 'MK ${stats?.savings.toStringAsFixed(2) ?? '0.00'}'),
                       _buildStatCard('Active Loans', 'MK ${stats?.loan.toStringAsFixed(2) ?? '0.00'}'),
+                      _buildStatCard('Borrowed Cash (In Acct)', 'MK ${stats?.unwithdrawnLoan.toStringAsFixed(2) ?? '0.00'}', isHighlight: (stats?.unwithdrawnLoan ?? 0) > 0),
                     ],
                   ),
+                  if (stats != null && stats.unwithdrawnLoan > 0) ...[
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.greenAccent.withOpacity(0.15),
+                            BankTheme.accentPurple.withOpacity(0.15),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.greenAccent.withOpacity(0.5), width: 1.5),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.greenAccent.withOpacity(0.2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.greenAccent, size: 20),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('LOANED CASH AVAILABLE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.greenAccent, letterSpacing: 1.5)),
+                                      Text('Not Yet Withdrawn', style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : BankTheme.lightTextSecondary)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.greenAccent,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.bolt_rounded, size: 12, color: Colors.black),
+                                    SizedBox(width: 2),
+                                    Text('INSTANT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.black, color: Colors.black)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'MK ${stats.unwithdrawnLoan.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: -0.5,
+                              color: isDark ? Colors.white : BankTheme.lightTextPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Your approved loan is stored in your account. You can instantly withdraw this money to TNM Mpamba or Airtel Money without needing admin approval or changing SIM cards.',
+                            style: TextStyle(fontSize: 12, height: 1.4, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.greenAccent,
+                                foregroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: const Icon(Icons.flash_on_rounded, color: Colors.black),
+                              label: const Text('INSTANT WITHDRAW CASH (TNM / AIRTEL)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
+                              onPressed: _showInstantWithdrawDialog,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 32),
                   _buildAdminBankDetails(),
                   const SizedBox(height: 32),
@@ -833,6 +1163,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const Text('Quick Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
                         const Text('Your financial summary is shown above. Use the tabs to manage your community interactions.', style: TextStyle(color: BankTheme.textMuted, fontSize: 14)),
+                        if (stats != null && stats.unwithdrawnLoan > 0) ...[
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.greenAccent,
+                                foregroundColor: Colors.black,
+                              ),
+                              icon: const Icon(Icons.flash_on_rounded, size: 18),
+                              label: Text('Instant Withdraw Borrowed Cash (MK ${stats.unwithdrawnLoan.toStringAsFixed(2)})'),
+                              onPressed: _showInstantWithdrawDialog,
+                            ),
+                          ),
+                        ],
                         if (stats != null && stats.loan > 0) ...[
                           const SizedBox(height: 24),
                           Container(
@@ -1114,7 +1459,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatCard(String label, String value) {
+  Widget _buildStatCard(String label, String value, {bool isHighlight = false}) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     return Container(
@@ -1126,9 +1471,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 8), // Padding for top border
-            Text(label, style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontSize: 12)),
+            Text(
+              label,
+              style: TextStyle(
+                color: isHighlight ? Colors.greenAccent : (isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
+                fontSize: 12,
+                fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
             const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: -0.5, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.5,
+                color: isHighlight ? Colors.greenAccent : (isDark ? Colors.white : BankTheme.lightTextPrimary),
+              ),
+            ),
           ],
         ),
       ),

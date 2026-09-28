@@ -2,16 +2,26 @@ class UserProfile {
   final String name;
   final String role;
   final String token;
+  final String organizationId;
+  final String organizationName;
 
   String get accountNumber => token;
 
-  UserProfile({required this.name, required this.role, required this.token});
+  UserProfile({
+    required this.name,
+    required this.role,
+    required this.token,
+    this.organizationId = 'default_org',
+    this.organizationName = 'Village Bank',
+  });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
       name: json['name'] ?? '',
       role: json['role'] ?? 'member',
       token: json['token'] ?? json['phoneNumber'] ?? '',
+      organizationId: json['organizationId'] ?? 'default_org',
+      organizationName: json['organizationName'] ?? 'Village Bank',
     );
   }
 }
@@ -23,6 +33,7 @@ class UserInfo {
   final double savings;
   final double loan;
   final double interest;
+  final String organizationId;
 
   UserInfo({
     required this.name,
@@ -31,6 +42,7 @@ class UserInfo {
     required this.savings,
     required this.loan,
     required this.interest,
+    this.organizationId = 'default_org',
   });
 
   factory UserInfo.fromJson(Map<String, dynamic> json) {
@@ -41,6 +53,7 @@ class UserInfo {
       savings: (json['savings'] as num?)?.toDouble() ?? 0.0,
       loan: (json['loan'] as num?)?.toDouble() ?? 0.0,
       interest: (json['interest'] as num?)?.toDouble() ?? 0.0,
+      organizationId: json['organizationId'] ?? 'default_org',
     );
   }
 }
@@ -48,6 +61,7 @@ class UserInfo {
 class MemberStats {
   final double savings;
   final double loan;
+  final double unwithdrawnLoan;
   final double accruedInterest;
   final double totalToRepay;
   final double interestRate;
@@ -56,6 +70,7 @@ class MemberStats {
   MemberStats({
     required this.savings,
     required this.loan,
+    this.unwithdrawnLoan = 0.0,
     required this.accruedInterest,
     required this.totalToRepay,
     required this.interestRate,
@@ -66,6 +81,7 @@ class MemberStats {
     return MemberStats(
       savings: (json['savings'] as num?)?.toDouble() ?? 0.0,
       loan: (json['loan'] as num?)?.toDouble() ?? 0.0,
+      unwithdrawnLoan: (json['unwithdrawnLoan'] as num?)?.toDouble() ?? 0.0,
       accruedInterest: (json['accruedInterest'] as num?)?.toDouble() ?? 0.0,
       totalToRepay: (json['totalToRepay'] as num?)?.toDouble() ?? 0.0,
       interestRate: (json['interestRate'] as num?)?.toDouble() ?? 35.0,
@@ -109,7 +125,6 @@ class PendingLoan {
   final double interest;
   final String requestedBy;
   final String date;
-
   final String receivingAccount;
 
   PendingLoan({

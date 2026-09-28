@@ -25,17 +25,17 @@ const mongoUri = process.env.MONGODB_URI;
 if (!mongoUri) {
     console.error('FATAL: MONGODB_URI is not defined in environment variables!');
 } else {
-    // Sanitize URI for logging (hide password)
     const sanitizedUri = mongoUri.replace(/:([^@]+)@/, ':****@');
     console.log(`[DB] Attempting connection to: ${sanitizedUri}`);
 }
 
 mongoose.connect(mongoUri, {
-    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    serverSelectionTimeoutMS: 5000,
 })
-    .then(() => {
+    .then(async () => {
         console.log('Successfully connected to MongoDB Atlas');
         console.log(`[DB] Database Name: ${mongoose.connection.name}`);
+        await ensureDefaultOrganization();
     })
     .catch(err => {
         console.error('CRITICAL: MongoDB connection error details:');
@@ -48,17 +48,36 @@ mongoose.connect(mongoUri, {
     });
 
 // Schemas
+const OrganizationSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    code: { type: String, required: true, unique: true },
+    description: { type: String, default: '' },
+    expectedMembers: { type: Number, default: 0 },
+    contactPerson: { type: String, default: '' },
+    contactPhone: { type: String, default: '' },
+    contactEmail: { type: String, default: '' },
+    adminName: { type: String, default: '' },
+    adminPhone: { type: String, default: '' },
+    status: { type: String, default: 'pending' }, // 'pending', 'approved', 'rejected'
+    sharePercentage: { type: Number, default: 25 }, // Member yield share percentage (default 25%)
+    organizationFund: { type: Number, default: 0 }, // Accumulated 5% Org Share Fund
+    createdAt: { type: Date, default: Date.now }
+});
+
 const UserSchema = new mongoose.Schema({
     phoneNumber: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     name: { type: String, required: true },
-    role: { type: String, default: 'member' },
+    role: { type: String, default: 'member' }, // 'super_admin', 'admin', 'member'
+    organizationId: { type: String, default: 'default_org' },
     savings: { type: Number, default: 0 },
     loan: { type: Number, default: 0 },
+    unwithdrawnLoan: { type: Number, default: 0 },
     interest: { type: Number, default: 0 }
 });
 
 const TransactionSchema = new mongoose.Schema({
+    organizationId: { type: String, default: 'default_org' },
     owner: String,
     title: String,
     date: String,
@@ -68,6 +87,7 @@ const TransactionSchema = new mongoose.Schema({
 });
 
 const PendingDepositSchema = new mongoose.Schema({
+    organizationId: { type: String, default: 'default_org' },
     owner: String,
     ownerName: String,
     amount: Number,
@@ -77,6 +97,7 @@ const PendingDepositSchema = new mongoose.Schema({
 });
 
 const PendingLoanSchema = new mongoose.Schema({
+    organizationId: { type: String, default: 'default_org' },
     amount: Number,
     interest: Number,
     requestedBy: String,
@@ -87,6 +108,7 @@ const PendingLoanSchema = new mongoose.Schema({
 });
 
 const PendingPayoutSchema = new mongoose.Schema({
+    organizationId: { type: String, default: 'default_org' },
     amount: Number,
     requestedBy: String,
     requestedByPhone: String,
@@ -96,6 +118,7 @@ const PendingPayoutSchema = new mongoose.Schema({
 });
 
 const PendingRepaymentSchema = new mongoose.Schema({
+    organizationId: { type: String, default: 'default_org' },
     owner: String,
     ownerName: String,
     amount: Number,
@@ -105,6 +128,7 @@ const PendingRepaymentSchema = new mongoose.Schema({
 });
 
 const MessageSchema = new mongoose.Schema({
+    organizationId: { type: String, default: 'default_org' },
     sender: String,
     receiver: String,
     text: String,
@@ -113,7 +137,24 @@ const MessageSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 
+const GlobalThreadPostSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    content: { type: String, required: true },
+    authorName: { type: String, required: true },
+    authorOrg: { type: String, default: 'Village Bank' },
+    authorPhone: { type: String, default: '' },
+    likes: [{ type: String }],
+    replies: [{
+        authorName: String,
+        authorOrg: String,
+        content: String,
+        timestamp: { type: Date, default: Date.now }
+    }],
+    timestamp: { type: Date, default: Date.now }
+});
+
 const LogSchema = new mongoose.Schema({
+    organizationId: { type: String, default: 'default_org' },
     title: String,
     desc: String,
     time: String,
@@ -135,6 +176,7 @@ const ConfigSchema = new mongoose.Schema({
 });
 
 // Models
+const Organization = mongoose.model('Organization', OrganizationSchema);
 const User = mongoose.model('User', UserSchema);
 const Transaction = mongoose.model('Transaction', TransactionSchema);
 const PendingDeposit = mongoose.model('PendingDeposit', PendingDepositSchema);
@@ -142,11 +184,34 @@ const PendingLoan = mongoose.model('PendingLoan', PendingLoanSchema);
 const PendingPayout = mongoose.model('PendingPayout', PendingPayoutSchema);
 const PendingRepayment = mongoose.model('PendingRepayment', PendingRepaymentSchema);
 const Message = mongoose.model('Message', MessageSchema);
+const GlobalThreadPost = mongoose.model('GlobalThreadPost', GlobalThreadPostSchema);
 const Log = mongoose.model('Log', LogSchema);
 const Release = mongoose.model('Release', ReleaseSchema);
 const Config = mongoose.model('Config', ConfigSchema);
 
-// Helper for Bank Fund
+async function ensureDefaultOrganization() {
+    try {
+        const defaultOrg = await Organization.findOne({ code: 'default_org' });
+        if (!defaultOrg) {
+            await new Organization({
+                name: 'Default Village Bank',
+                code: 'default_org',
+                description: 'Default Main Village Bank Organization',
+                expectedMembers: 100,
+                contactPerson: 'Platform Owner',
+                contactPhone: 'owner',
+                adminName: 'Super Admin',
+                adminPhone: 'admin',
+                status: 'approved'
+            }).save();
+            console.log('[DB] Created Default Organization (default_org)');
+        }
+    } catch (e) {
+        console.error('Error ensuring default org:', e);
+    }
+}
+
+// Helper for Bank & Management Funds
 async function getBankFund() {
     const config = await Config.findOne({ key: 'bankFund' });
     return config ? config.value : 0;
@@ -160,55 +225,303 @@ async function updateBankFund(amount) {
     );
 }
 
-// Auth Endpoints
-app.post('/api/auth/login', async (req, res) => {
-    const { phoneNumber, password } = req.body;
-    if (phoneNumber.toLowerCase() === 'admin' && password === 'password') {
-        return res.json({ success: true, role: 'admin', token: 'admin-token', name: 'Super Admin' });
-    }
+async function getManagementFund() {
+    const config = await Config.findOne({ key: 'managementFund' });
+    return config ? config.value : 0;
+}
+
+async function updateManagementFund(amount) {
+    await Config.findOneAndUpdate(
+        { key: 'managementFund' },
+        { $inc: { value: amount } },
+        { upsert: true }
+    );
+}
+
+// ==================== ORGANIZATION ENDPOINTS ====================
+
+// Get all approved active organizations (For member registration dropdown)
+app.get('/api/organizations/active', async (req, res) => {
     try {
-        const user = await User.findOne({ phoneNumber, password });
-        if (user) {
-            res.json({
-                success: true,
-                role: user.role,
-                token: user.role === 'admin' ? 'admin-token' : user.phoneNumber,
-                name: user.name
-            });
-        } else {
-            res.status(401).json({ success: false, message: 'Invalid credentials' });
+        const orgs = await Organization.find({ status: 'approved' }).sort({ name: 1 });
+        const result = await Promise.all(orgs.map(async (org) => {
+            const count = await User.countDocuments({ organizationId: org.code });
+            return {
+                code: org.code,
+                name: org.name,
+                description: org.description,
+                expectedMembers: org.expectedMembers,
+                contactPerson: org.contactPerson,
+                memberCount: count
+            };
+        }));
+        res.json({ success: true, organizations: result });
+    } catch (e) {
+        res.status(500).json({ success: false, organizations: [] });
+    }
+});
+
+// Register a new organization (Sent directly to Management Portal for review)
+app.post('/api/organizations/register', async (req, res) => {
+    const { name, expectedMembers, contactPerson, contactPhone, contactEmail, description, adminName, adminPhone, adminPassword } = req.body;
+
+    if (!name || !contactPerson || !contactPhone || !adminPhone || !adminPassword) {
+        return res.status(400).json({ success: false, message: 'Missing required organization details.' });
+    }
+
+    try {
+        const existingUser = await User.findOne({ phoneNumber: adminPhone });
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: 'Admin phone number is already registered in the system.' });
         }
+
+        const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').substring(0, 20);
+        const uniqueCode = `${slug}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        const newOrg = new Organization({
+            name,
+            code: uniqueCode,
+            description: description || 'Village Bank Organization',
+            expectedMembers: parseInt(expectedMembers) || 10,
+            contactPerson,
+            contactPhone,
+            contactEmail: contactEmail || '',
+            adminName: adminName || contactPerson,
+            adminPhone,
+            status: 'pending'
+        });
+        await newOrg.save();
+
+        const newAdmin = new User({
+            phoneNumber: adminPhone,
+            password: adminPassword,
+            name: adminName || contactPerson,
+            role: 'admin',
+            organizationId: uniqueCode
+        });
+        await newAdmin.save();
+
+        await new Log({
+            organizationId: uniqueCode,
+            title: 'ORGANIZATION REGISTERED',
+            desc: `New Organization '${name}' registered by ${contactPerson}. Pending Management Review.`,
+            time: 'Now',
+            type: 'warning'
+        }).save();
+
+        res.json({
+            success: true,
+            message: 'Your organization registration has been submitted to Management. Once approved, your admin account will be activated.'
+        });
+    } catch (e) {
+        console.error('Org Register Error:', e);
+        res.status(500).json({ success: false, message: 'Server error registering organization.' });
+    }
+});
+
+// ==================== MANAGEMENT PORTAL (SITE OWNER) ENDPOINTS ====================
+
+app.get('/api/management/overview', async (req, res) => {
+    try {
+        const totalOrgs = await Organization.countDocuments({ status: 'approved' });
+        const pendingOrgs = await Organization.countDocuments({ status: 'pending' });
+        const totalUsers = await User.countDocuments({});
+        const allUsers = await User.find({});
+
+        const totalSavings = allUsers.reduce((s, u) => s + (u.savings || 0), 0);
+        const totalLoans = allUsers.reduce((s, u) => s + (u.loan || 0), 0);
+
+        res.json({
+            success: true,
+            totalOrganizations: totalOrgs,
+            pendingOrganizationsCount: pendingOrgs,
+            totalMembers: totalUsers,
+            totalSavings: totalSavings,
+            totalLoans: totalLoans,
+            groupFund: totalSavings - totalLoans
+        });
     } catch (e) {
         res.status(500).json({ success: false });
     }
 });
 
+app.get('/api/management/organizations', async (req, res) => {
+    try {
+        const orgs = await Organization.find({}).sort({ createdAt: -1 });
+        const detailedOrgs = await Promise.all(orgs.map(async (org) => {
+            const orgUsers = await User.find({ organizationId: org.code });
+            const totalSavings = orgUsers.reduce((s, u) => s + (u.savings || 0), 0);
+            const totalLoans = orgUsers.reduce((s, u) => s + (u.loan || 0), 0);
+            return {
+                id: org._id,
+                code: org.code,
+                name: org.name,
+                description: org.description,
+                expectedMembers: org.expectedMembers,
+                contactPerson: org.contactPerson,
+                contactPhone: org.contactPhone,
+                contactEmail: org.contactEmail,
+                adminName: org.adminName,
+                adminPhone: org.adminPhone,
+                status: org.status,
+                memberCount: orgUsers.length,
+                totalSavings: totalSavings,
+                totalLoans: totalLoans,
+                createdAt: org.createdAt
+            };
+        }));
+        res.json({ success: true, organizations: detailedOrgs });
+    } catch (e) {
+        res.status(500).json({ success: false, organizations: [] });
+    }
+});
+
+app.post('/api/management/approve-organization', async (req, res) => {
+    const { orgId, approve } = req.body;
+    try {
+        const org = await Organization.findById(orgId);
+        if (!org) return res.status(404).json({ success: false, message: 'Organization not found' });
+
+        org.status = approve ? 'approved' : 'rejected';
+        await org.save();
+
+        await new Log({
+            organizationId: org.code,
+            title: approve ? 'ORGANIZATION APPROVED' : 'ORGANIZATION REJECTED',
+            desc: `Organization '${org.name}' status set to ${org.status} by Site Owner.`,
+            time: 'Now',
+            type: approve ? 'success' : 'danger'
+        }).save();
+
+        res.json({ success: true, status: org.status, message: `Organization ${org.name} has been ${org.status}` });
+    } catch (e) {
+        res.status(500).json({ success: false });
+    }
+});
+
+app.get('/api/management/organization-members', async (req, res) => {
+    const { orgCode } = req.query;
+    try {
+        const users = await User.find({ organizationId: orgCode });
+        const data = users.map(u => ({
+            name: u.name,
+            phoneNumber: u.phoneNumber,
+            role: u.role,
+            savings: u.savings,
+            loan: u.loan,
+            interest: u.interest || (u.loan * INTEREST_RATE),
+            organizationId: u.organizationId
+        }));
+        res.json({ success: true, members: data });
+    } catch (e) {
+        res.status(500).json({ success: false, members: [] });
+    }
+});
+
+// ==================== AUTH ENDPOINTS ====================
+
+app.post('/api/auth/login', async (req, res) => {
+    const { phoneNumber, password } = req.body;
+
+    // Site Owner Super Admin Login
+    if ((phoneNumber.toLowerCase() === 'owner' || phoneNumber.toLowerCase() === 'superadmin') && password === 'password') {
+        return res.json({
+            success: true,
+            role: 'super_admin',
+            token: 'owner-token',
+            name: 'Platform Owner',
+            organizationId: 'all',
+            organizationName: 'Global Management Portal'
+        });
+    }
+
+    // Default legacy admin login support
+    if (phoneNumber.toLowerCase() === 'admin' && password === 'password') {
+        const defaultOrg = await Organization.findOne({ code: 'default_org' });
+        return res.json({
+            success: true,
+            role: 'admin',
+            token: 'admin-token',
+            name: 'Super Admin',
+            organizationId: 'default_org',
+            organizationName: defaultOrg ? defaultOrg.name : 'Default Village Bank'
+        });
+    }
+
+    try {
+        const user = await User.findOne({ phoneNumber, password });
+        if (!user) {
+            return res.status(401).json({ success: false, message: 'Invalid phone number or password' });
+        }
+
+        const orgCode = user.organizationId || 'default_org';
+        const org = await Organization.findOne({ code: orgCode });
+
+        if (org && org.status === 'pending' && user.role !== 'super_admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Your organization registration is pending approval by Management.'
+            });
+        }
+
+        if (org && org.status === 'rejected' && user.role !== 'super_admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Your organization registration was not approved by Management.'
+            });
+        }
+
+        res.json({
+            success: true,
+            role: user.role,
+            token: user.role === 'admin' ? 'admin-token' : user.phoneNumber,
+            name: user.name,
+            organizationId: orgCode,
+            organizationName: org ? org.name : 'Village Bank'
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Login error' });
+    }
+});
+
 app.post('/api/auth/register', async (req, res) => {
-    const { phoneNumber, password, fullName, role } = req.body;
+    const { phoneNumber, password, fullName, role, organizationId } = req.body;
     try {
         const existing = await User.findOne({ phoneNumber });
         if (existing) {
-            return res.status(400).json({ success: false, message: 'User already exists' });
+            return res.status(400).json({ success: false, message: 'Phone number is already registered.' });
         }
+
+        const orgCode = organizationId || 'default_org';
+        const org = await Organization.findOne({ code: orgCode });
+        if (!org || org.status !== 'approved') {
+            return res.status(400).json({ success: false, message: 'Selected organization is invalid or not active.' });
+        }
+
         const newUser = new User({
             phoneNumber,
             password,
             name: fullName,
-            role: role === 'admin' ? 'admin' : 'member'
+            role: role === 'admin' ? 'admin' : 'member',
+            organizationId: orgCode
         });
         await newUser.save();
+
         res.json({
             success: true,
             role: newUser.role,
             token: newUser.role === 'admin' ? 'admin-token' : newUser.phoneNumber,
-            name: fullName
+            name: fullName,
+            organizationId: orgCode,
+            organizationName: org.name
         });
     } catch (e) {
-        res.status(500).json({ success: false, message: 'Server error' });
+        res.status(500).json({ success: false, message: 'Server error during registration.' });
     }
 });
 
-// Member Endpoints
+// ==================== MEMBER ENDPOINTS ====================
+
 app.get('/api/member/summary', async (req, res) => {
     const phone = req.query.phone;
     try {
@@ -220,10 +533,12 @@ app.get('/api/member/summary', async (req, res) => {
         res.json({
             savings: user.savings,
             loan: user.loan,
+            unwithdrawnLoan: user.unwithdrawnLoan || 0,
             accruedInterest: accruedInterest,
             totalToRepay: user.loan + accruedInterest,
             interestRate: INTEREST_RATE * 100,
-            pendingLoanCount: pendingLoanCount
+            pendingLoanCount: pendingLoanCount,
+            organizationId: user.organizationId
         });
     } catch (e) {
         res.status(500).json({ message: 'Error' });
@@ -248,6 +563,7 @@ app.post('/api/member/deposit', async (req, res) => {
 
         const depositAmount = parseFloat(amount);
         const newPending = new PendingDeposit({
+            organizationId: user.organizationId || 'default_org',
             owner: phone,
             ownerName: user.name,
             amount: depositAmount,
@@ -256,22 +572,21 @@ app.post('/api/member/deposit', async (req, res) => {
         });
         await newPending.save();
 
-        const newLog = new Log({
+        await new Log({
+            organizationId: user.organizationId || 'default_org',
             title: 'DEPOSIT SUBMITTED',
             desc: `MK ${depositAmount} submitted by ${user.name} (ID: ${transactionId})`,
             time: 'Now',
             type: 'warning'
-        });
-        await newLog.save();
+        }).save();
 
-        // AI Message
         setTimeout(async () => {
-            const aiMessage = new Message({
+            await new Message({
+                organizationId: user.organizationId || 'default_org',
                 sender: 'admin-token',
                 receiver: phone,
-                text: `Hello ${user.name}, I have received your deposit request of MK ${depositAmount}. Please wait for the Admin's verification. It usually takes about 10 minutes for an Admin to click "Approve". Your transaction ID ${transactionId} is now in the queue.`
-            });
-            await aiMessage.save();
+                text: `Hello ${user.name}, I have received your deposit request of MK ${depositAmount}. Please wait for your Organization Admin's verification. Transaction ID: ${transactionId}`
+            }).save();
         }, 1000);
 
         res.json({ success: true, message: 'Deposit submitted for verification' });
@@ -292,18 +607,20 @@ app.post('/api/member/loan', async (req, res) => {
         }
 
         const loanAmount = parseFloat(amount);
+        const orgCode = user.organizationId || 'default_org';
 
-        // Check group fund (savings - loans)
-        const allUsers = await User.find({});
-        const totalSavings = allUsers.reduce((s, u) => s + u.savings, 0);
-        const totalLoans = allUsers.reduce((s, u) => s + u.loan, 0);
+        // Check group fund for this organization
+        const orgUsers = await User.find({ organizationId: orgCode });
+        const totalSavings = orgUsers.reduce((s, u) => s + u.savings, 0);
+        const totalLoans = orgUsers.reduce((s, u) => s + u.loan, 0);
         const groupFund = totalSavings - totalLoans;
 
         if (groupFund < loanAmount) {
-            return res.status(400).json({ success: false, message: 'Insufficient group funds' });
+            return res.status(400).json({ success: false, message: 'Insufficient organization group funds' });
         }
 
         const newLoan = new PendingLoan({
+            organizationId: orgCode,
             amount: loanAmount,
             interest: loanAmount * INTEREST_RATE,
             requestedBy: user.name,
@@ -314,6 +631,7 @@ app.post('/api/member/loan', async (req, res) => {
         await newLoan.save();
 
         await new Log({
+            organizationId: orgCode,
             title: 'LOAN REQUEST',
             desc: `MK ${loanAmount} requested by ${user.name}`,
             time: 'Now',
@@ -322,9 +640,10 @@ app.post('/api/member/loan', async (req, res) => {
 
         setTimeout(async () => {
             await new Message({
+                organizationId: orgCode,
                 sender: 'admin-token',
                 receiver: phone,
-                text: `Loan request for MK ${loanAmount} received. The request has been forwarded to the Admin. Please wait for the Admin's verification and approval. It usually takes about 10 minutes for an Admin to click "Approve".`
+                text: `Loan request for MK ${loanAmount} received. The request has been forwarded to your Organization Admin for verification and approval.`
             }).save();
         }, 1000);
 
@@ -342,6 +661,7 @@ app.post('/api/member/repay', async (req, res) => {
 
         const repaymentAmount = parseFloat(amount);
         const newPending = new PendingRepayment({
+            organizationId: user.organizationId || 'default_org',
             owner: phone,
             ownerName: user.name,
             amount: repaymentAmount,
@@ -350,19 +670,20 @@ app.post('/api/member/repay', async (req, res) => {
         });
         await newPending.save();
 
-        const newLog = new Log({
+        await new Log({
+            organizationId: user.organizationId || 'default_org',
             title: 'REPAYMENT SUBMITTED',
             desc: `MK ${repaymentAmount} repayment submitted by ${user.name} (ID: ${transactionId})`,
             time: 'Now',
             type: 'warning'
-        });
-        await newLog.save();
+        }).save();
 
         setTimeout(async () => {
             await new Message({
+                organizationId: user.organizationId || 'default_org',
                 sender: 'admin-token',
                 receiver: phone,
-                text: `Hello ${user.name}, I have received your loan repayment request of MK ${repaymentAmount}. Please wait for the Admin's verification. It usually takes about 10 minutes for an Admin to click "Approve". Your transaction ID ${transactionId} is now in the queue.`
+                text: `Hello ${user.name}, I have received your loan repayment request of MK ${repaymentAmount}. Please wait for your Organization Admin's verification.`
             }).save();
         }, 1000);
 
@@ -384,6 +705,7 @@ app.post('/api/member/request-payout', async (req, res) => {
         }
 
         const newPayout = new PendingPayout({
+            organizationId: user.organizationId || 'default_org',
             amount: payoutAmount,
             requestedBy: user.name,
             requestedByPhone: phone,
@@ -396,6 +718,7 @@ app.post('/api/member/request-payout', async (req, res) => {
         await user.save();
 
         await new Log({
+            organizationId: user.organizationId || 'default_org',
             title: 'PAYOUT REQUEST',
             desc: `MK ${payoutAmount} requested by ${user.name}`,
             time: 'Now',
@@ -404,9 +727,10 @@ app.post('/api/member/request-payout', async (req, res) => {
 
         setTimeout(async () => {
             await new Message({
+                organizationId: user.organizationId || 'default_org',
                 sender: 'admin-token',
                 receiver: phone,
-                text: `Your payout request for MK ${payoutAmount} is being processed. Please wait for the Admin's verification to receive funds on your SIM. It usually takes about 10 minutes for an Admin to click "Approve".`
+                text: `Your payout request for MK ${payoutAmount} is being processed. Please wait for your Organization Admin's verification.`
             }).save();
         }, 1000);
 
@@ -416,14 +740,19 @@ app.post('/api/member/request-payout', async (req, res) => {
     }
 });
 
-// Admin Endpoints
+// ==================== ADMIN ENDPOINTS (ORGANIZATION ADMIN) ====================
+
 app.get('/api/admin/overview', async (req, res) => {
+    const orgCode = req.query.orgCode || 'default_org';
     try {
-        const users = await User.find({});
-        const pLoans = await PendingLoan.countDocuments({ status: 'pending' });
-        const pPayouts = await PendingPayout.countDocuments({ status: 'pending' });
-        const pDeposits = await PendingDeposit.countDocuments({ status: 'pending' });
-        const pRepayments = await PendingRepayment.countDocuments({ status: 'pending' });
+        let userFilter = orgCode === 'all' ? {} : { organizationId: orgCode };
+        let pendingFilter = orgCode === 'all' ? { status: 'pending' } : { organizationId: orgCode, status: 'pending' };
+
+        const users = await User.find(userFilter);
+        const pLoans = await PendingLoan.countDocuments(pendingFilter);
+        const pPayouts = await PendingPayout.countDocuments(pendingFilter);
+        const pDeposits = await PendingDeposit.countDocuments(pendingFilter);
+        const pRepayments = await PendingRepayment.countDocuments(pendingFilter);
 
         const totalSavings = users.reduce((s, u) => s + u.savings, 0);
         const totalLoans = users.reduce((s, u) => s + u.loan, 0);
@@ -449,7 +778,9 @@ app.get('/api/admin/overview', async (req, res) => {
 });
 
 app.get('/api/admin/pending-deposits', async (req, res) => {
-    const data = await PendingDeposit.find({ status: 'pending' });
+    const orgCode = req.query.orgCode;
+    const filter = orgCode && orgCode !== 'all' ? { organizationId: orgCode, status: 'pending' } : { status: 'pending' };
+    const data = await PendingDeposit.find(filter);
     res.json(data);
 });
 
@@ -466,6 +797,7 @@ app.post('/api/admin/approve-deposit', async (req, res) => {
                 await user.save();
 
                 await new Transaction({
+                    organizationId: user.organizationId || 'default_org',
                     owner: user.phoneNumber,
                     title: 'Deposit Verified',
                     date: deposit.date,
@@ -474,6 +806,7 @@ app.post('/api/admin/approve-deposit', async (req, res) => {
                 }).save();
 
                 await new Log({
+                    organizationId: user.organizationId || 'default_org',
                     title: 'DEPOSIT VERIFIED',
                     desc: `MK ${deposit.amount} for ${user.name} approved.`,
                     time: 'Now',
@@ -489,7 +822,9 @@ app.post('/api/admin/approve-deposit', async (req, res) => {
 });
 
 app.get('/api/admin/pending-payouts', async (req, res) => {
-    const data = await PendingPayout.find({ status: 'pending' });
+    const orgCode = req.query.orgCode;
+    const filter = orgCode && orgCode !== 'all' ? { organizationId: orgCode, status: 'pending' } : { status: 'pending' };
+    const data = await PendingPayout.find(filter);
     res.json(data);
 });
 
@@ -501,6 +836,7 @@ app.post('/api/admin/process-payout', async (req, res) => {
 
         if (confirm) {
             await new Transaction({
+                organizationId: payout.organizationId || 'default_org',
                 owner: payout.requestedByPhone,
                 title: 'Payout Disbursed to SIM',
                 date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -524,7 +860,9 @@ app.post('/api/admin/process-payout', async (req, res) => {
 });
 
 app.get('/api/admin/pending-loans', async (req, res) => {
-    const data = await PendingLoan.find({ status: 'pending' });
+    const orgCode = req.query.orgCode;
+    const filter = orgCode && orgCode !== 'all' ? { organizationId: orgCode, status: 'pending' } : { status: 'pending' };
+    const data = await PendingLoan.find(filter);
     res.json(data);
 });
 
@@ -538,18 +876,19 @@ app.post('/api/admin/approve-loan', async (req, res) => {
             const user = await User.findOne({ phoneNumber: loan.requestedByPhone });
             if (user) {
                 user.loan += loan.amount;
+                user.unwithdrawnLoan = (user.unwithdrawnLoan || 0) + loan.amount;
                 user.interest = (user.interest || 0) + (loan.amount * INTEREST_RATE);
                 await user.save();
 
                 await new Transaction({
+                    organizationId: user.organizationId || 'default_org',
                     owner: user.phoneNumber,
-                    title: 'Loan Disbursed',
+                    title: 'Loan Approved (Credited to Wallet)',
                     date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                     amount: loan.amount,
                     type: 'deposit'
                 }).save();
 
-                // Return receiving account number/phone number and amount so frontend can trigger a National Bank USSD dialer
                 await PendingLoan.findByIdAndDelete(loanId);
                 return res.json({ success: true, phone: loan.receivingAccount || user.phoneNumber, amount: loan.amount });
             }
@@ -561,8 +900,64 @@ app.post('/api/admin/approve-loan', async (req, res) => {
     }
 });
 
+// Instant Loan Withdrawal Endpoint (No Admin Approval Required)
+app.post('/api/member/instant-withdraw-loan', async (req, res) => {
+    const { phone, amount, paymentMethod, receivingPhone } = req.body;
+    try {
+        const user = await User.findOne({ phoneNumber: phone });
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+        const withdrawAmount = parseFloat(amount);
+        if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid withdrawal amount.' });
+        }
+
+        const currentUnwithdrawn = user.unwithdrawnLoan || 0;
+        if (currentUnwithdrawn < withdrawAmount) {
+            return res.status(400).json({
+                success: false,
+                message: `Insufficient unwithdrawn loaned cash. Available: MK ${currentUnwithdrawn.toFixed(2)}`
+            });
+        }
+
+        user.unwithdrawnLoan = currentUnwithdrawn - withdrawAmount;
+        await user.save();
+
+        const targetAccount = receivingPhone || phone;
+        const method = paymentMethod || 'Mobile Money';
+
+        await new Transaction({
+            organizationId: user.organizationId || 'default_org',
+            owner: user.phoneNumber,
+            title: `Instant Withdrawal (${method}: ${targetAccount})`,
+            date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            amount: withdrawAmount,
+            type: 'withdrawal'
+        }).save();
+
+        await new Log({
+            organizationId: user.organizationId || 'default_org',
+            title: 'INSTANT LOAN WITHDRAWAL',
+            desc: `MK ${withdrawAmount.toFixed(2)} instantly withdrawn by ${user.name} to ${method} (${targetAccount}). No admin approval required.`,
+            time: 'Now',
+            type: 'success'
+        }).save();
+
+        res.json({
+            success: true,
+            message: `MK ${withdrawAmount.toFixed(2)} has been instantly transferred to ${targetAccount} via ${method}.`,
+            remainingUnwithdrawn: user.unwithdrawnLoan
+        });
+    } catch (e) {
+        console.error('Instant Withdraw Error:', e);
+        res.status(500).json({ success: false, message: 'Server error processing instant withdrawal.' });
+    }
+});
+
 app.get('/api/admin/pending-repayments', async (req, res) => {
-    const data = await PendingRepayment.find({ status: 'pending' });
+    const orgCode = req.query.orgCode;
+    const filter = orgCode && orgCode !== 'all' ? { organizationId: orgCode, status: 'pending' } : { status: 'pending' };
+    const data = await PendingRepayment.find(filter);
     res.json(data);
 });
 
@@ -576,10 +971,20 @@ app.post('/api/admin/approve-repayment', async (req, res) => {
             const user = await User.findOne({ phoneNumber: repayment.owner });
             if (user && user.loan > 0) {
                 const principal = user.loan;
-                const memberProfit = principal * 0.30;
-                const bankCut = principal * 0.05;
+
+                // Fetch user's organization share configuration
+                const orgCode = user.organizationId || 'default_org';
+                const org = await Organization.findOne({ code: orgCode });
+
+                // Organization share rate (default 25%)
+                const sharePercentage = (org && org.sharePercentage) ? org.sharePercentage : 25;
+
+                const memberProfit = principal * (sharePercentage / 100);
+                const orgCut = principal * 0.05; // 5% Organization Reserve Share
+                const managementCut = principal * 0.05; // 5% Main Management Portal Share
 
                 await new Transaction({
+                    organizationId: orgCode,
                     owner: user.phoneNumber,
                     title: 'Loan Repayment Verified',
                     date: repayment.date,
@@ -592,11 +997,20 @@ app.post('/api/admin/approve-repayment', async (req, res) => {
                 user.interest = 0;
                 await user.save();
 
-                await updateBankFund(bankCut);
+                // Allocate 5% to Organization Reserve Fund
+                if (org) {
+                    org.organizationFund = (org.organizationFund || 0) + orgCut;
+                    await org.save();
+                }
+
+                // Allocate 5% to Main Management Portal Pool
+                await updateManagementFund(managementCut);
+                await updateBankFund(orgCut); // Keep bank fund updated
 
                 await new Log({
+                    organizationId: orgCode,
                     title: 'REPAYMENT VERIFIED',
-                    desc: `MK ${repayment.amount.toFixed(2)} repaid by ${user.name} approved.`,
+                    desc: `MK ${repayment.amount.toFixed(2)} repaid by ${user.name}. Allocated ${sharePercentage}% to Member, 5% to Org Reserve, 5% to Platform Management.`,
                     time: 'Now',
                     type: 'success'
                 }).save();
@@ -605,24 +1019,195 @@ app.post('/api/admin/approve-repayment', async (req, res) => {
         await PendingRepayment.findByIdAndDelete(repaymentId);
         res.json({ success: true });
     } catch (e) {
+        console.error('Approve Repayment Error:', e);
         res.status(500).json({ success: false });
     }
 });
 
+// Update Organization Share Percentage (Org Admin or Super Admin)
+app.post('/api/organizations/set-share-percentage', async (req, res) => {
+    const { orgCode, sharePercentage } = req.body;
+    try {
+        const share = parseFloat(sharePercentage);
+        if (isNaN(share) || share < 0 || share > 50) {
+            return res.status(400).json({ success: false, message: 'Share percentage must be between 0% and 50%.' });
+        }
+
+        const org = await Organization.findOne({ code: orgCode });
+        if (!org) return res.status(404).json({ success: false, message: 'Organization not found.' });
+
+        org.sharePercentage = share;
+        await org.save();
+
+        await new Log({
+            organizationId: orgCode,
+            title: 'SHARE RATE UPDATED',
+            desc: `Organization member share percentage set to ${share}%. (Guaranteed 5% Org Reserve + 5% Management Portal Share).`,
+            time: 'Now',
+            type: 'info'
+        }).save();
+
+        res.json({ success: true, sharePercentage: org.sharePercentage, message: `Member share percentage updated to ${share}%` });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Error updating share percentage' });
+    }
+});
+
+// ==================== GLOBAL ANALYSIS ENDPOINTS ====================
+
+app.get('/api/analytics/global', async (req, res) => {
+    try {
+        const approvedOrgs = await Organization.find({ status: 'approved' }).sort({ name: 1 });
+        const allUsers = await User.find({});
+
+        let platformTotalSavings = 0;
+        let platformTotalLoans = 0;
+
+        const orgsData = await Promise.all(approvedOrgs.map(async (org) => {
+            const orgUsers = allUsers.filter(u => u.organizationId === org.code);
+            const totalSavings = orgUsers.reduce((s, u) => s + (u.savings || 0), 0);
+            const totalLoans = orgUsers.reduce((s, u) => s + (u.loan || 0), 0);
+
+            platformTotalSavings += totalSavings;
+            platformTotalLoans += totalLoans;
+
+            const fundUtilization = totalSavings > 0 ? Math.min(100, Math.round((totalLoans / totalSavings) * 100)) : 0;
+            const healthScore = totalSavings > 0 ? Math.min(100, Math.round(((totalSavings - totalLoans) / totalSavings) * 100)) : 100;
+
+            return {
+                code: org.code,
+                name: org.name,
+                description: org.description,
+                contactPerson: org.contactPerson,
+                memberCount: orgUsers.length,
+                totalSavings: totalSavings,
+                totalLoans: totalLoans,
+                fundUtilization: fundUtilization,
+                healthScore: healthScore,
+                organizationFund: org.organizationFund || 0,
+                sharePercentage: org.sharePercentage || 25,
+                createdAt: org.createdAt
+            };
+        }));
+
+        const managementFund = await getManagementFund();
+
+        res.json({
+            success: true,
+            summary: {
+                totalOrganizations: approvedOrgs.length,
+                totalMembers: allUsers.length,
+                platformTotalSavings: platformTotalSavings,
+                platformTotalLoans: platformTotalLoans,
+                platformManagementFund: managementFund,
+                netPool: platformTotalSavings - platformTotalLoans
+            },
+            organizations: orgsData
+        });
+    } catch (e) {
+        console.error('Global Analytics Error:', e);
+        res.status(500).json({ success: false, summary: null, organizations: [] });
+    }
+});
+
+// ==================== GLOBAL COMMUNITY THREAD ENDPOINTS ====================
+
+app.get('/api/community/posts', async (req, res) => {
+    try {
+        const posts = await GlobalThreadPost.find({}).sort({ timestamp: -1 }).limit(100);
+        res.json({ success: true, posts });
+    } catch (e) {
+        res.status(500).json({ success: false, posts: [] });
+    }
+});
+
+app.post('/api/community/posts', async (req, res) => {
+    const { title, content, authorName, authorOrg, authorPhone } = req.body;
+    if (!title || !content || !authorName) {
+        return res.status(400).json({ success: false, message: 'Title, content and author are required.' });
+    }
+    try {
+        const newPost = new GlobalThreadPost({
+            title,
+            content,
+            authorName,
+            authorOrg: authorOrg || 'Village Bank Member',
+            authorPhone: authorPhone || '',
+            likes: [],
+            replies: []
+        });
+        await newPost.save();
+        res.json({ success: true, post: newPost });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Failed to create post.' });
+    }
+});
+
+app.post('/api/community/posts/:id/reply', async (req, res) => {
+    const { id } = req.params;
+    const { authorName, authorOrg, content } = req.body;
+    if (!content || !authorName) {
+        return res.status(400).json({ success: false, message: 'Reply content and author name are required.' });
+    }
+    try {
+        const post = await GlobalThreadPost.findById(id);
+        if (!post) return res.status(404).json({ success: false, message: 'Post not found.' });
+
+        post.replies.push({
+            authorName,
+            authorOrg: authorOrg || 'Village Bank Member',
+            content,
+            timestamp: new Date()
+        });
+        await post.save();
+
+        res.json({ success: true, post });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Error adding reply.' });
+    }
+});
+
+app.post('/api/community/posts/:id/like', async (req, res) => {
+    const { id } = req.params;
+    const { userPhone } = req.body;
+    try {
+        const post = await GlobalThreadPost.findById(id);
+        if (!post) return res.status(404).json({ success: false, message: 'Post not found.' });
+
+        const phone = userPhone || 'anonymous';
+        const index = post.likes.indexOf(phone);
+        if (index > -1) {
+            post.likes.splice(index, 1);
+        } else {
+            post.likes.push(phone);
+        }
+        await post.save();
+
+        res.json({ success: true, likesCount: post.likes.length, isLiked: index === -1 });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Error updating like.' });
+    }
+});
+
 app.get('/api/admin/logs', async (req, res) => {
-    const logs = await Log.find({}).sort({ timestamp: -1 }).limit(50);
+    const orgCode = req.query.orgCode;
+    const filter = orgCode && orgCode !== 'all' ? { organizationId: orgCode } : {};
+    const logs = await Log.find(filter).sort({ timestamp: -1 }).limit(50);
     res.json(logs);
 });
 
 app.get('/api/admin/users', async (req, res) => {
-    const users = await User.find({});
+    const orgCode = req.query.orgCode;
+    const filter = orgCode && orgCode !== 'all' ? { organizationId: orgCode } : {};
+    const users = await User.find(filter);
     const data = users.map(u => ({
         name: u.name,
         phoneNumber: u.phoneNumber,
         role: u.role,
         savings: u.savings,
         loan: u.loan,
-        interest: u.interest || (u.loan * INTEREST_RATE)
+        interest: u.interest || (u.loan * INTEREST_RATE),
+        organizationId: u.organizationId
     }));
     res.json(data);
 });
@@ -637,10 +1222,14 @@ app.post('/api/admin/reset', async (req, res) => {
     await Message.deleteMany({});
     await Log.deleteMany({});
     await Config.deleteMany({});
+    await Organization.deleteMany({});
+
+    await ensureDefaultOrganization();
 
     await new Log({
+        organizationId: 'default_org',
         title: 'SYSTEM RESET',
-        desc: 'All data has been cleared by Admin.',
+        desc: 'All system data reset by Admin.',
         time: 'Now',
         type: 'danger'
     }).save();
@@ -671,9 +1260,16 @@ app.get('/api/chat', async (req, res) => {
 });
 
 app.post('/api/chat/send', async (req, res) => {
-    const { sender, receiver, text, transactionId, imageUrl } = req.body;
+    const { sender, receiver, text, transactionId, imageUrl, organizationId } = req.body;
     try {
-        const newMessage = new Message({ sender, receiver, text, transactionId, imageUrl });
+        const newMessage = new Message({
+            organizationId: organizationId || 'default_org',
+            sender,
+            receiver,
+            text,
+            transactionId,
+            imageUrl
+        });
         await newMessage.save();
         res.json(newMessage);
     } catch (e) {
@@ -697,7 +1293,6 @@ app.post('/api/upload', (req, res) => {
             return res.status(500).json({ success: false });
         }
 
-        // Use the request host to construct the URL dynamically
         const protocol = req.protocol;
         const host = req.get('host');
         const url = `${protocol}://${host}/uploads/${fileName}`;
@@ -719,6 +1314,7 @@ app.post('/api/releases/log', async (req, res) => {
         await newRelease.save();
 
         await new Log({
+            organizationId: 'default_org',
             title: 'NEW RELEASE LOGGED',
             desc: `Version ${version}+${buildNumber} is now available.`,
             time: 'Now',

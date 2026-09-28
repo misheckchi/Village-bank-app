@@ -57,3 +57,6 @@ backend/node_modules/
 backend/data.json
 backend/uploads/
 backend/.env
+
+# Local Netlify folder
+.netlify

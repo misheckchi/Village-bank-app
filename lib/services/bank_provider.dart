@@ -4,6 +4,8 @@ import '../models/transaction.dart';
 import '../models/user_model.dart';
 import '../models/chat_message.dart';
 import '../models/release_record.dart';
+import '../models/organization_model.dart';
+import '../models/global_post_model.dart';
 import 'api_service.dart';
 import 'notification_service.dart';
 
@@ -22,6 +24,10 @@ class BankProvider with ChangeNotifier {
   List<UserInfo> _users = [];
   List<ChatMessage> _messages = [];
   List<ReleaseRecord> _releases = [];
+  List<OrganizationModel> _globalOrganizations = [];
+  Map<String, dynamic>? _globalSummary;
+  List<GlobalPostModel> _communityPosts = [];
+
   final Map<String, List<ChatMessage>> _chatCache = {};
   String? _activeChatPhone;
   bool _isLoading = false;
@@ -40,6 +46,9 @@ class BankProvider with ChangeNotifier {
   List<UserInfo> get users => _users;
   List<ChatMessage> get messages => _messages;
   List<ReleaseRecord> get releases => _releases;
+  List<OrganizationModel> get globalOrganizations => _globalOrganizations;
+  Map<String, dynamic>? get globalSummary => _globalSummary;
+  List<GlobalPostModel> get communityPosts => _communityPosts;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   ThemeMode get themeMode => _themeMode;
@@ -271,6 +280,29 @@ class BankProvider with ChangeNotifier {
     }
   }
 
+  Future<bool> instantWithdrawLoan({
+    required double amount,
+    required String paymentMethod,
+    required String receivingPhone,
+  }) async {
+    if (_user == null) return false;
+    final res = await _apiService.instantWithdrawLoan(
+      token: _user!.token,
+      amount: amount,
+      paymentMethod: paymentMethod,
+      receivingPhone: receivingPhone,
+    );
+    if (res['success'] == true) {
+      NotificationService.playTransactionSound();
+      await refreshMemberData();
+      return true;
+    } else {
+      _errorMessage = res['message'];
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> repayLoan(double amount, String transactionId) async {
     if (_user == null) return false;
     final success = await _apiService.repayLoan(amount, _user!.token, transactionId);
@@ -428,6 +460,88 @@ class BankProvider with ChangeNotifier {
     );
     if (success) {
       await refreshReleases();
+    }
+    return success;
+  }
+
+  // ==================== GLOBAL ANALYTICS & COMMUNITY THREAD ====================
+
+  Future<void> refreshGlobalAnalytics() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final data = await _apiService.fetchGlobalAnalytics();
+      if (data != null && data['success'] == true) {
+        _globalSummary = data['summary'];
+        List orgs = data['organizations'] ?? [];
+        _globalOrganizations = orgs.map((o) => OrganizationModel.fromJson(o)).toList();
+      }
+    } catch (e) {
+      print('Refresh Global Analytics Error: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> updateOrganizationSharePercentage(String orgCode, double sharePercentage) async {
+    final success = await _apiService.updateOrganizationSharePercentage(orgCode, sharePercentage);
+    if (success) {
+      await refreshGlobalAnalytics();
+      await refreshAdminData();
+    }
+    return success;
+  }
+
+  Future<void> refreshCommunityPosts() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _communityPosts = await _apiService.fetchGlobalCommunityPosts();
+    } catch (e) {
+      print('Refresh Community Posts Error: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> createCommunityPost(String title, String content) async {
+    if (_user == null) return false;
+    final success = await _apiService.createGlobalCommunityPost(
+      title: title,
+      content: content,
+      authorName: _user!.name,
+      authorOrg: _user!.organizationName ?? 'Village Bank Member',
+      authorPhone: _user!.token,
+    );
+    if (success) {
+      NotificationService.playTransactionSound();
+      await refreshCommunityPosts();
+    }
+    return success;
+  }
+
+  Future<bool> replyToCommunityPost(String postId, String content) async {
+    if (_user == null) return false;
+    final success = await _apiService.replyGlobalCommunityPost(
+      postId: postId,
+      authorName: _user!.name,
+      authorOrg: _user!.organizationName ?? 'Village Bank Member',
+      content: content,
+    );
+    if (success) {
+      NotificationService.playTransactionSound();
+      await refreshCommunityPosts();
+    }
+    return success;
+  }
+
+  Future<bool> likeCommunityPost(String postId) async {
+    if (_user == null) return false;
+    final success = await _apiService.likeGlobalCommunityPost(postId, _user!.token);
+    if (success) {
+      await refreshCommunityPosts();
     }
     return success;
   }

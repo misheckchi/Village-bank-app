@@ -3,10 +3,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
+import '../models/organization_model.dart';
 import '../models/transaction.dart';
 import '../models/user_model.dart';
 import '../models/chat_message.dart';
 import '../models/release_record.dart';
+import '../models/global_post_model.dart';
 
 class ApiService {
   static const String _pcIp = "172.20.10.12";
@@ -21,6 +23,120 @@ class ApiService {
     } catch (e) {}
     return "http://localhost:3000/api";
   }
+
+  // ==================== ORGANIZATION APIS ====================
+
+  Future<List<Map<String, dynamic>>> fetchActiveOrganizations() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/organizations/active'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          return List<Map<String, dynamic>>.from(data['organizations']);
+        }
+      }
+    } catch (e) {
+      print('Fetch Active Orgs Error: $e');
+    }
+    return [];
+  }
+
+  Future<bool> registerOrganization({
+    required String name,
+    required int expectedMembers,
+    required String contactPerson,
+    required String contactPhone,
+    required String contactEmail,
+    required String description,
+    required String adminName,
+    required String adminPhone,
+    required String adminPassword,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/organizations/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'name': name,
+          'expectedMembers': expectedMembers,
+          'contactPerson': contactPerson,
+          'contactPhone': contactPhone,
+          'contactEmail': contactEmail,
+          'description': description,
+          'adminName': adminName,
+          'adminPhone': adminPhone,
+          'adminPassword': adminPassword,
+        }),
+      );
+      final data = json.decode(response.body);
+      return response.statusCode == 200 && data['success'] == true;
+    } catch (e) {
+      print('Register Org Error: $e');
+      return false;
+    }
+  }
+
+  // ==================== MANAGEMENT PORTAL APIS ====================
+
+  Future<Map<String, dynamic>?> fetchManagementOverview() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/management/overview'));
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {
+      print('Fetch Management Overview Error: $e');
+    }
+    return null;
+  }
+
+  Future<List<OrganizationModel>> fetchManagementOrganizations() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/management/organizations'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          List orgs = data['organizations'];
+          return orgs.map((item) => OrganizationModel.fromJson(item)).toList();
+        }
+      }
+    } catch (e) {
+      print('Fetch Management Organizations Error: $e');
+    }
+    return [];
+  }
+
+  Future<bool> approveOrganization(String orgId, bool approve) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/management/approve-organization'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'orgId': orgId, 'approve': approve}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Approve Org Error: $e');
+      return false;
+    }
+  }
+
+  Future<List<UserInfo>> fetchOrganizationMembers(String orgCode) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/management/organization-members?orgCode=$orgCode'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          List members = data['members'];
+          return members.map((item) => UserInfo.fromJson(item)).toList();
+        }
+      }
+    } catch (e) {
+      print('Fetch Org Members Error: $e');
+    }
+    return [];
+  }
+
+  // ==================== AUTH APIS ====================
 
   Future<UserProfile?> login(String phoneNumber, String password) async {
     try {
@@ -40,7 +156,7 @@ class ApiService {
     return null;
   }
 
-  Future<UserProfile?> register(String phoneNumber, String password, String fullName, {String role = 'member'}) async {
+  Future<UserProfile?> register(String phoneNumber, String password, String fullName, {String role = 'member', String organizationId = 'default_org'}) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/auth/register'),
@@ -50,6 +166,7 @@ class ApiService {
           'password': password,
           'fullName': fullName,
           'role': role,
+          'organizationId': organizationId,
         }),
       ).timeout(const Duration(seconds: 5));
 
@@ -62,6 +179,8 @@ class ApiService {
     }
     return null;
   }
+
+  // ==================== MEMBER APIS ====================
 
   Future<MemberStats?> fetchMemberStats(String token) async {
     try {
@@ -88,9 +207,9 @@ class ApiService {
     return [];
   }
 
-  Future<AdminStats?> fetchAdminStats() async {
+  Future<AdminStats?> fetchAdminStats([String orgCode = 'default_org']) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/admin/overview'));
+      final response = await http.get(Uri.parse('$baseUrl/admin/overview?orgCode=$orgCode'));
       if (response.statusCode == 200) {
         return AdminStats.fromJson(json.decode(response.body));
       }
@@ -100,9 +219,9 @@ class ApiService {
     return null;
   }
 
-  Future<List<UserInfo>> fetchUsers() async {
+  Future<List<UserInfo>> fetchUsers([String orgCode = 'default_org']) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/admin/users'));
+      final response = await http.get(Uri.parse('$baseUrl/admin/users?orgCode=$orgCode'));
       if (response.statusCode == 200) {
         List data = json.decode(response.body);
         return data.map((item) => UserInfo.fromJson(item)).toList();
@@ -113,9 +232,9 @@ class ApiService {
     return [];
   }
 
-  Future<List<PendingLoan>> fetchPendingLoans() async {
+  Future<List<PendingLoan>> fetchPendingLoans([String orgCode = 'default_org']) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/admin/pending-loans'));
+      final response = await http.get(Uri.parse('$baseUrl/admin/pending-loans?orgCode=$orgCode'));
       if (response.statusCode == 200) {
         List data = json.decode(response.body);
         return data.map((item) => PendingLoan.fromJson(item)).toList();
@@ -126,9 +245,9 @@ class ApiService {
     return [];
   }
 
-  Future<List<dynamic>> fetchPendingPayouts() async {
+  Future<List<dynamic>> fetchPendingPayouts([String orgCode = 'default_org']) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/admin/pending-payouts'));
+      final response = await http.get(Uri.parse('$baseUrl/admin/pending-payouts?orgCode=$orgCode'));
       if (response.statusCode == 200) {
         return json.decode(response.body);
       }
@@ -138,9 +257,9 @@ class ApiService {
     return [];
   }
 
-  Future<List<dynamic>> fetchPendingDeposits() async {
+  Future<List<dynamic>> fetchPendingDeposits([String orgCode = 'default_org']) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/admin/pending-deposits'));
+      final response = await http.get(Uri.parse('$baseUrl/admin/pending-deposits?orgCode=$orgCode'));
       if (response.statusCode == 200) {
         return json.decode(response.body);
       }
@@ -150,9 +269,9 @@ class ApiService {
     return [];
   }
 
-  Future<List<dynamic>> fetchPendingRepayments() async {
+  Future<List<dynamic>> fetchPendingRepayments([String orgCode = 'default_org']) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/admin/pending-repayments'));
+      final response = await http.get(Uri.parse('$baseUrl/admin/pending-repayments?orgCode=$orgCode'));
       if (response.statusCode == 200) {
         return json.decode(response.body);
       }
@@ -245,6 +364,34 @@ class ApiService {
         return {'success': true, 'message': data['message'] ?? 'Loan requested successfully'};
       } else {
         return {'success': false, 'message': data['message'] ?? 'Failed to request loan'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Network error. Please try again.'};
+    }
+  }
+
+  Future<Map<String, dynamic>> instantWithdrawLoan({
+    required String token,
+    required double amount,
+    required String paymentMethod,
+    required String receivingPhone,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/member/instant-withdraw-loan'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'phone': token,
+          'amount': amount,
+          'paymentMethod': paymentMethod,
+          'receivingPhone': receivingPhone,
+        }),
+      );
+      final data = json.decode(response.body);
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {'success': true, 'message': data['message'] ?? 'Withdrawal successful'};
+      } else {
+        return {'success': false, 'message': data['message'] ?? 'Withdrawal failed'};
       }
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please try again.'};
@@ -350,8 +497,7 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         String url = data['url'];
-        
-        // Only perform localhost replacement if NOT in production
+
         if (!_isProduction && !kIsWeb && Platform.isAndroid) {
           url = url.replaceAll('localhost', _pcIp);
         }
@@ -396,6 +542,120 @@ class ApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
+      return false;
+    }
+  }
+
+  // ==================== GLOBAL ANALYTICS & COMMUNITY THREAD APIS ====================
+
+  Future<Map<String, dynamic>?> fetchGlobalAnalytics() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/analytics/global'));
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {
+      print('Fetch Global Analytics Error: $e');
+    }
+    return null;
+  }
+
+  Future<bool> updateOrganizationSharePercentage(String orgCode, double sharePercentage) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/organizations/set-share-percentage'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'orgCode': orgCode,
+          'sharePercentage': sharePercentage,
+        }),
+      );
+      final data = json.decode(response.body);
+      return response.statusCode == 200 && data['success'] == true;
+    } catch (e) {
+      print('Update Share Percentage Error: $e');
+      return false;
+    }
+  }
+
+  Future<List<GlobalPostModel>> fetchGlobalCommunityPosts() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/community/posts'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          List posts = data['posts'];
+          return posts.map((p) => GlobalPostModel.fromJson(p)).toList();
+        }
+      }
+    } catch (e) {
+      print('Fetch Community Posts Error: $e');
+    }
+    return [];
+  }
+
+  Future<bool> createGlobalCommunityPost({
+    required String title,
+    required String content,
+    required String authorName,
+    required String authorOrg,
+    required String authorPhone,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/community/posts'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'title': title,
+          'content': content,
+          'authorName': authorName,
+          'authorOrg': authorOrg,
+          'authorPhone': authorPhone,
+        }),
+      );
+      final data = json.decode(response.body);
+      return response.statusCode == 200 && data['success'] == true;
+    } catch (e) {
+      print('Create Community Post Error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> replyGlobalCommunityPost({
+    required String postId,
+    required String authorName,
+    required String authorOrg,
+    required String content,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/community/posts/$postId/reply'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'authorName': authorName,
+          'authorOrg': authorOrg,
+          'content': content,
+        }),
+      );
+      final data = json.decode(response.body);
+      return response.statusCode == 200 && data['success'] == true;
+    } catch (e) {
+      print('Reply Community Post Error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> likeGlobalCommunityPost(String postId, String userPhone) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/community/posts/$postId/like'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'userPhone': userPhone}),
+      );
+      final data = json.decode(response.body);
+      return response.statusCode == 200 && data['success'] == true;
+    } catch (e) {
+      print('Like Post Error: $e');
       return false;
     }
   }

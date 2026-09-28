@@ -1,73 +1,120 @@
 # 🏦 Village Bank App
 
-A comprehensive full-stack mobile application built with **Flutter** and **Node.js** designed to facilitate community-based micro-finance (Village Banking). This platform allows members to save, borrow, and track their financial growth collectively.
+A professional, multi-tenant full-stack mobile application built with **Flutter** and **Node.js (Express & MongoDB)** designed for community-based micro-finance (Village Banking). This platform allows multiple independent organizations and village bank groups to register, manage their members, save, borrow, and track financial performance securely under a single backend server.
 
-## 🚀 Features
+---
 
-### For Members
-- **Secure Authentication:** Easy login and registration via phone number.
-- **Financial Summary:** Real-time view of savings, active loans, and accrued interest.
-- **Transactions:** Full history of deposits and withdrawals.
-- **Loan Management:** Request loans with automatic interest calculation (35%) and track repayments.
-- **Instant Deposits/Payouts:** Submit deposit proofs and request payouts to mobile money accounts.
-- **Built-in Chat:** Communicate with admins and other members via direct or group chat, including image sharing.
-- **Real-time Notifications:** In-app notifications for transaction updates and admin messages.
+## 🚀 Key Features
 
-### For Admins
-- **Dashboard Overview:** Monitor total group funds, active loans, and total members.
-- **Approval Workflow:** Verify and approve/reject deposits, loan requests, and repayments.
-- **System Logs:** Transparent logging of all critical system activities.
-- **User Management:** View all member details, including their individual financial standing.
-- **Release Tracking:** Manage and log new application builds.
+### 🏢 Multi-Tenant Organization Architecture
+- **Independent Group Isolation:** Each organization operates as its own village bank with separate members, savings, loans, transaction ledgers, and logs.
+- **Organization Registration Flow:** Users can submit an organization registration form with professional details (organization name, expected member count, contact details, and initial admin credentials).
+- **Owner Review & Activation:** Submitted organization requests go straight to the Platform Management Portal for review and activation by the site owner.
+
+### 👑 Platform Management Portal (Site Owner)
+- **Super Admin Dashboard:** Access full platform-wide visibility across all registered organizations.
+- **Organization Approval Workflow:** Approve or reject pending organization registration requests.
+- **Platform Financial Overview:** Monitor aggregate system stats, total registered members, total savings, total loans, and accumulated management revenues.
+
+### 🌐 Global Performance Analysis (`GlobalAnalyticsScreen`)
+- **Cross-Organization Benchmarks:** All members can view a comparative analysis leaderboard showing how different village bank organizations are performing.
+- **Performance Metrics:** View active member counts, total savings, active loans, fund utilization rates, and organization reserve pools.
+- **Visual Charting:** Interactive bar chart comparing top-performing village bank organizations.
+
+### 💬 Global Community Forum Thread (`GlobalCommunityThreadScreen`)
+- **Idea Sharing Thread:** A global discussion forum open to all individuals across all organizations to post, share, and discuss ideas on how to improve organization performance.
+- **Interactive Discussion:** Features idea posting with organization badges, upvoting/liking, and threaded responses.
+
+### 💰 Revenue & Share Split Structure
+- **5% Platform Management Share:** Guaranteed 5% cut on loan repayments allocated to the site owner's management portal.
+- **5% Organization Reserve Share:** Guaranteed 5% cut on loan repayments allocated to the specific organization's reserve fund.
+- **Customizable Member Share Percentage:** Configurable member profit yield (default 25%, adjustable between 5% - 50%) distributed back to member savings upon loan repayment.
+- **In-App Share Rate Configuration:** Organization Admins and Super Admins can adjust their bank's member share percentage in real-time.
+
+### 👤 For Members
+- **Organization Login & Registration:** Log in directly under a registered organization or select an active group during signup.
+- **Financial Dashboard:** Real-time view of personal savings, active loan balances, accrued interest, and total due.
+- **USSD Payment Integration:** Quick USSD dialer integration for Airtel Money, TNM Mpamba, and National Bank of Malawi (626).
+- **Automatic Transaction SMS Capturing:** Automated capture of transaction reference IDs from SMS on Android devices.
+- **Direct & Group Support Chat:** Communicate with group members and administrators with optional image attachments.
+
+### 🛠️ For Organization Administrators
+- **Group Dashboard:** Manage community funds, verify deposits, process loan disbursements, and approve payouts/repayments.
+- **Member Management:** View individual member accounts, loan statuses, and financial standing.
+- **Transparent Logging:** Automatic logging of all financial activities per organization.
+
+---
 
 ## 🛠️ Technology Stack
 
 - **Frontend:** Flutter (Dart)
-- **Backend:** Node.js (Express)
-- **Database:** MongoDB (via Mongoose)
+- **Backend:** Node.js (Express.js)
+- **Database:** MongoDB Atlas (Mongoose ORM)
 - **State Management:** Provider
-- **Theming:** Custom Glassmorphic UI (Aurum Kit)
+- **Design & UI:** Glassmorphism Theme (Aurum Kit)
+
+---
 
 ## 📁 Project Structure
 
 ```text
 village_bank_app/
-├── android/            # Android native code
-├── backend/            # Node.js Server & API
-│   ├── server.js       # Express server & MongoDB schemas
-│   ├── .env            # Environment variables (DB URI, etc.)
-│   └── package.json    # Backend dependencies
-├── lib/                # Flutter Frontend code
-│   ├── models/         # Data models
-│   ├── screens/        # UI Screens (Auth, Dashboard, Chat, etc.)
-│   ├── services/       # API & Notification services
-│   └── widgets/        # Reusable UI components
-├── ios/                # iOS native code
-└── assets/             # Images and fonts
+├── android/            # Android native code & SMS listeners
+├── backend/            # Node.js Express Server & API
+│   ├── server.js       # Express routes, schemas & revenue logic
+│   ├── .env            # Environment variables (MONGODB_URI, PORT)
+│   └── package.json    # Node dependencies
+├── lib/                # Flutter Frontend Application
+│   ├── models/         # Organization, User, Post & Transaction models
+│   ├── screens/        # UI Screens (Auth, Dashboards, Global Analytics, Forum, Chat)
+│   ├── services/       # API Service & Bank Provider state manager
+│   ├── utils/          # Dark/Light theme configuration
+│   └── widgets/        # Glassmorphic UI containers and bar charts
+└── ios/                # iOS native code
 ```
-
-## ⚙️ Setup Instructions
-
-### Backend
-1. Navigate to the `backend/` directory.
-2. Run `npm install` to install dependencies.
-3. Create a `.env` file and add your `MONGODB_URI`.
-4. Start the server: `node server.js`.
-
-### Frontend
-1. Ensure you have the Flutter SDK installed.
-2. Run `flutter pub get` in the root directory.
-3. Update the API base URL in `lib/services/api_service.dart` to point to your backend.
-4. Run the app: `flutter run`.
-
-## 📸 Screenshots
-
-<p align="center">
-  <img src="screenshots/login_screen.png" width="800" alt="Login Screen">
-  <br>
-  <i>Secure Login Screen with Glassmorphic UI</i>
-</p>
 
 ---
 
-Developed with ❤️ for community finance.
+## ⚙️ Quick Start & Setup Instructions
+
+### 1. Backend Server Setup
+1. Open a terminal and navigate to `backend/`:
+   ```bash
+   cd village_bank_app/backend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Create/verify `.env` with your MongoDB connection string:
+   ```env
+   MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/village_bank_db
+   PORT=3000
+   ```
+4. Start the backend server:
+   ```bash
+   node server.js
+   ```
+
+### 2. Flutter Mobile Application
+1. Ensure Flutter SDK is installed.
+2. In the root directory, fetch dependencies:
+   ```bash
+   flutter pub get
+   ```
+3. Verify or update the API base URL in `lib/services/api_service.dart`.
+4. Launch the application:
+   ```bash
+   flutter run
+   ```
+
+---
+
+## 🔑 Default Credentials
+
+- **Site Owner (Super Admin Portal):** Phone: `owner` | Password: `password`
+- **Default Organization Admin:** Phone: `admin` | Password: `password`
+
+---
+
+Developed with ❤️ for multi-tenant community micro-finance.
