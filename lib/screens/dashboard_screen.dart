@@ -1112,7 +1112,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   children: [
                                     Icon(Icons.bolt_rounded, size: 12, color: Colors.black),
                                     SizedBox(width: 2),
-                                    Text('INSTANT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.black, color: Colors.black)),
+                                    Text('INSTANT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.black)),
                                   ],
                                 ),
                               ),
