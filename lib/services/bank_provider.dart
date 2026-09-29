@@ -41,6 +41,7 @@ class BankProvider with ChangeNotifier {
 
   Timer? _realtimeSyncTimer;
   bool _isPolling = false;
+  final Set<String> _seenNotificationIds = {};
 
   UserProfile? get user => _user;
   MemberStats? get memberStats => _memberStats;
@@ -96,7 +97,8 @@ class BankProvider with ChangeNotifier {
   }
 
   Future<void> pollRealtimeNotifications() async {
-    if (_user == null || _isPolling) return;
+    final enabled = await NotificationService.isNotificationEnabled();
+    if (!enabled || _user == null || _isPolling) return;
     _isPolling = true;
 
     try {
@@ -110,10 +112,18 @@ class BankProvider with ChangeNotifier {
         orgCode: orgCode,
       );
 
-      if (unreadNotifs.isNotEmpty) {
+      final newNotifs = unreadNotifs.where((notif) {
+        final id = notif['_id']?.toString();
+        if (id == null) return false;
+        if (_seenNotificationIds.contains(id)) return false;
+        _seenNotificationIds.add(id);
+        return true;
+      }).toList();
+
+      if (newNotifs.isNotEmpty) {
         List<String> idsToMarkRead = [];
 
-        for (var notif in unreadNotifs) {
+        for (var notif in newNotifs) {
           final id = notif['_id']?.toString();
           final title = notif['title'] ?? 'Notification';
           final body = notif['body'] ?? '';
@@ -150,6 +160,17 @@ class BankProvider with ChangeNotifier {
     } finally {
       _isPolling = false;
     }
+  }
+
+  Future<void> toggleNotifications(bool enable) async {
+    await NotificationService.setNotificationEnabled(enable);
+    if (enable) {
+      await NotificationService.requestOSPermission();
+      startRealtimeSync();
+    } else {
+      stopRealtimeSync();
+    }
+    notifyListeners();
   }
 
   Future<bool> login(String phoneNumber, String password) async {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class NotificationService {
   static GlobalKey<ScaffoldMessengerState> messengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -31,13 +32,82 @@ class NotificationService {
         debugPrint('Notification clicked: ${response.payload}');
       },
     );
+  }
 
-    // Request Android 13+ POST_NOTIFICATIONS permission
+  static Future<bool> isNotificationEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('notifications_enabled') ?? false;
+  }
+
+  static Future<bool> hasPromptedPermission() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('notifications_prompted') ?? false;
+  }
+
+  static Future<void> setNotificationEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notifications_enabled', enabled);
+    await prefs.setBool('notifications_prompted', true);
+  }
+
+  static Future<void> requestOSPermission() async {
     final androidImplementation = _notificationsPlugin
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     if (androidImplementation != null) {
       await androidImplementation.requestNotificationsPermission();
     }
+  }
+
+  static Future<bool?> showPermissionDialog(BuildContext context) async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: const Color(0xFF1E1E24),
+          title: const Row(
+            children: [
+              Icon(Icons.notifications_active_rounded, color: Color(0xFFBB86FC), size: 28),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Enable Notifications?',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Would you like to receive instant push alerts for deposit approvals, loan disbursements, repayments, and updates?',
+            style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
+          ),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await setNotificationEnabled(false);
+                Navigator.of(ctx).pop(false);
+              },
+              child: const Text('Not Now', style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFBB86FC),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () async {
+                await setNotificationEnabled(true);
+                await requestOSPermission();
+                Navigator.of(ctx).pop(true);
+              },
+              child: const Text('Enable Notifications', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   static Future<void> showSystemNotification({
@@ -46,6 +116,9 @@ class NotificationService {
     String? payload,
     bool isError = false,
   }) async {
+    final enabled = await isNotificationEnabled();
+    if (!enabled) return;
+
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       channelId,
       channelName,

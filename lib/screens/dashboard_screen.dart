@@ -173,8 +173,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<BankProvider>(context, listen: false).refreshMemberData();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final provider = Provider.of<BankProvider>(context, listen: false);
+      provider.refreshMemberData();
+
+      final prompted = await NotificationService.hasPromptedPermission();
+      if (!prompted && mounted) {
+        final choice = await NotificationService.showPermissionDialog(context);
+        if (choice == true) {
+          provider.toggleNotifications(true);
+        }
+      }
     });
   }
 

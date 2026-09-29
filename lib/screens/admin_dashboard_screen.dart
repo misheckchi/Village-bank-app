@@ -25,8 +25,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<BankProvider>(context, listen: false).refreshAdminData();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final provider = Provider.of<BankProvider>(context, listen: false);
+      provider.refreshAdminData();
+
+      final prompted = await NotificationService.hasPromptedPermission();
+      if (!prompted && mounted) {
+        final choice = await NotificationService.showPermissionDialog(context);
+        if (choice == true) {
+          provider.toggleNotifications(true);
+        }
+      }
     });
   }
 

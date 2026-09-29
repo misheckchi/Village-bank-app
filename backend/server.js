@@ -274,20 +274,16 @@ app.get('/api/notifications', async (req, res) => {
         if (phone) targets.push(phone);
         if (role) targets.push(role);
 
-        let filter = {
-            targetUser: { $in: targets },
-            isRead: false
+        let query = {
+            isRead: false,
+            targetUser: { $in: targets }
         };
 
         if (orgCode && orgCode !== 'all') {
-            filter.$or = [
-                { organizationId: orgCode },
-                { targetUser: 'super_admin' },
-                { targetUser: 'all' }
-            ];
+            query.organizationId = orgCode;
         }
 
-        const notifications = await Notification.find(filter).sort({ timestamp: -1 }).limit(50);
+        const notifications = await Notification.find(query).sort({ timestamp: -1 }).limit(50);
         res.json({ success: true, notifications });
     } catch (e) {
         console.error('Fetch Notifications Error:', e);
@@ -299,7 +295,14 @@ app.post('/api/notifications/read', async (req, res) => {
     const { ids, phone, role } = req.body;
     try {
         if (ids && ids.length > 0) {
-            await Notification.updateMany({ _id: { $in: ids } }, { $set: { isRead: true } });
+            const objectIds = ids.map(id => {
+                try {
+                    return new mongoose.Types.ObjectId(id);
+                } catch (e) {
+                    return id;
+                }
+            });
+            await Notification.updateMany({ _id: { $in: objectIds } }, { $set: { isRead: true } });
         } else if (phone) {
             let targets = ['all', phone];
             if (role) targets.push(role);
