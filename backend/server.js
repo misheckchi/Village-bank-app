@@ -175,6 +175,16 @@ const ConfigSchema = new mongoose.Schema({
     value: Number
 });
 
+const NotificationSchema = new mongoose.Schema({
+    organizationId: { type: String, default: 'default_org' },
+    targetUser: { type: String, required: true },
+    title: { type: String, required: true },
+    body: { type: String, required: true },
+    isRead: { type: Boolean, default: false },
+    type: { type: String, default: 'info' },
+    timestamp: { type: Date, default: Date.now }
+});
+
 // Models
 const Organization = mongoose.model('Organization', OrganizationSchema);
 const User = mongoose.model('User', UserSchema);
@@ -188,6 +198,7 @@ const GlobalThreadPost = mongoose.model('GlobalThreadPost', GlobalThreadPostSche
 const Log = mongoose.model('Log', LogSchema);
 const Release = mongoose.model('Release', ReleaseSchema);
 const Config = mongoose.model('Config', ConfigSchema);
+const Notification = mongoose.model('Notification', NotificationSchema);
 
 async function ensureDefaultOrganization() {
     try {
@@ -208,6 +219,22 @@ async function ensureDefaultOrganization() {
         }
     } catch (e) {
         console.error('Error ensuring default org:', e);
+    }
+}
+
+async function createNotification(targetUser, title, body, organizationId = 'default_org', type = 'info') {
+    try {
+        const notif = new Notification({
+            organizationId,
+            targetUser,
+            title,
+            body,
+            type
+        });
+        await notif.save();
+        return notif;
+    } catch (e) {
+        console.error('Error creating notification:', e);
     }
 }
 
@@ -237,6 +264,53 @@ async function updateManagementFund(amount) {
         { upsert: true }
     );
 }
+
+// ==================== NOTIFICATION ENDPOINTS ====================
+
+app.get('/api/notifications', async (req, res) => {
+    const { phone, role, orgCode } = req.query;
+    try {
+        let targets = ['all'];
+        if (phone) targets.push(phone);
+        if (role) targets.push(role);
+
+        let filter = {
+            targetUser: { $in: targets },
+            isRead: false
+        };
+
+        if (orgCode && orgCode !== 'all') {
+            filter.$or = [
+                { organizationId: orgCode },
+                { targetUser: 'super_admin' },
+                { targetUser: 'all' }
+            ];
+        }
+
+        const notifications = await Notification.find(filter).sort({ timestamp: -1 }).limit(50);
+        res.json({ success: true, notifications });
+    } catch (e) {
+        console.error('Fetch Notifications Error:', e);
+        res.status(500).json({ success: false, notifications: [] });
+    }
+});
+
+app.post('/api/notifications/read', async (req, res) => {
+    const { ids, phone, role } = req.body;
+    try {
+        if (ids && ids.length > 0) {
+            await Notification.updateMany({ _id: { $in: ids } }, { $set: { isRead: true } });
+        } else if (phone) {
+            let targets = ['all', phone];
+            if (role) targets.push(role);
+            await Notification.updateMany({ targetUser: { $in: targets } }, { $set: { isRead: true } });
+        }
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Mark Notifications Read Error:', e);
+        res.status(500).json({ success: false });
+    }
+});
 
 // ==================== ORGANIZATION ENDPOINTS ====================
 
@@ -308,6 +382,8 @@ app.post('/api/organizations/register', async (req, res) => {
             time: 'Now',
             type: 'warning'
         }).save();
+
+        await createNotification('super_admin', 'New Organization Registered', `New Organization '${name}' registered by ${contactPerson}. Pending Management Review.`, uniqueCode, 'warning');
 
         res.json({
             success: true,
@@ -392,6 +468,8 @@ app.post('/api/management/approve-organization', async (req, res) => {
             time: 'Now',
             type: approve ? 'success' : 'danger'
         }).save();
+
+        await createNotification(org.adminPhone || 'admin', 'Organization Status Updated', `Organization '${org.name}' status set to ${org.status} by Management.`, org.code, approve ? 'success' : 'danger');
 
         res.json({ success: true, status: org.status, message: `Organization ${org.name} has been ${org.status}` });
     } catch (e) {
@@ -580,6 +658,8 @@ app.post('/api/member/deposit', async (req, res) => {
             type: 'warning'
         }).save();
 
+        await createNotification('admin', 'New Deposit Submitted', `MK ${depositAmount} deposit submitted by ${user.name}`, user.organizationId || 'default_org', 'warning');
+
         setTimeout(async () => {
             await new Message({
                 organizationId: user.organizationId || 'default_org',
@@ -638,6 +718,8 @@ app.post('/api/member/loan', async (req, res) => {
             type: 'warning'
         }).save();
 
+        await createNotification('admin', 'New Loan Requested', `MK ${loanAmount} loan requested by ${user.name}`, orgCode, 'warning');
+
         setTimeout(async () => {
             await new Message({
                 organizationId: orgCode,
@@ -677,6 +759,8 @@ app.post('/api/member/repay', async (req, res) => {
             time: 'Now',
             type: 'warning'
         }).save();
+
+        await createNotification('admin', 'New Repayment Submitted', `MK ${repaymentAmount} loan repayment submitted by ${user.name}`, user.organizationId || 'default_org', 'warning');
 
         setTimeout(async () => {
             await new Message({
@@ -724,6 +808,8 @@ app.post('/api/member/request-payout', async (req, res) => {
             time: 'Now',
             type: 'warning'
         }).save();
+
+        await createNotification('admin', 'New Payout Requested', `MK ${payoutAmount} payout requested by ${user.name}`, user.organizationId || 'default_org', 'warning');
 
         setTimeout(async () => {
             await new Message({
@@ -812,7 +898,11 @@ app.post('/api/admin/approve-deposit', async (req, res) => {
                     time: 'Now',
                     type: 'success'
                 }).save();
+
+                await createNotification(deposit.owner, 'Deposit Approved', `Your deposit of MK ${deposit.amount} has been verified and credited to your savings.`, deposit.organizationId || 'default_org', 'success');
             }
+        } else {
+            await createNotification(deposit.owner, 'Deposit Rejected', `Your deposit of MK ${deposit.amount} was rejected.`, deposit.organizationId || 'default_org', 'danger');
         }
         await PendingDeposit.findByIdAndDelete(depositId);
         res.json({ success: true });
@@ -843,6 +933,9 @@ app.post('/api/admin/process-payout', async (req, res) => {
                 amount: payout.amount,
                 type: 'withdrawal'
             }).save();
+
+            await createNotification(payout.requestedByPhone, 'Payout Disbursed', `Your payout request of MK ${payout.amount} has been disbursed to ${payout.receivingAccount || payout.requestedByPhone}.`, payout.organizationId || 'default_org', 'success');
+
             await PendingPayout.findByIdAndDelete(payoutId);
             return res.json({ success: true, phone: payout.receivingAccount || payout.requestedByPhone, amount: payout.amount });
         } else {
@@ -851,6 +944,8 @@ app.post('/api/admin/process-payout', async (req, res) => {
                 user.savings += payout.amount;
                 await user.save();
             }
+
+            await createNotification(payout.requestedByPhone, 'Payout Rejected', `Your payout request of MK ${payout.amount} was rejected. Savings restored.`, payout.organizationId || 'default_org', 'danger');
         }
         await PendingPayout.findByIdAndDelete(payoutId);
         res.json({ success: true });
@@ -889,9 +984,13 @@ app.post('/api/admin/approve-loan', async (req, res) => {
                     type: 'deposit'
                 }).save();
 
+                await createNotification(loan.requestedByPhone, 'Loan Approved', `Your loan request of MK ${loan.amount} has been approved and credited to your wallet.`, loan.organizationId || 'default_org', 'success');
+
                 await PendingLoan.findByIdAndDelete(loanId);
                 return res.json({ success: true, phone: loan.receivingAccount || user.phoneNumber, amount: loan.amount });
             }
+        } else {
+            await createNotification(loan.requestedByPhone, 'Loan Rejected', `Your loan request of MK ${loan.amount} was rejected.`, loan.organizationId || 'default_org', 'danger');
         }
         await PendingLoan.findByIdAndDelete(loanId);
         res.json({ success: true });
@@ -1014,7 +1113,11 @@ app.post('/api/admin/approve-repayment', async (req, res) => {
                     time: 'Now',
                     type: 'success'
                 }).save();
+
+                await createNotification(repayment.owner, 'Loan Repayment Approved', `Your loan repayment of MK ${repayment.amount} has been verified and cleared.`, orgCode, 'success');
             }
+        } else {
+            await createNotification(repayment.owner, 'Loan Repayment Rejected', `Your loan repayment of MK ${repayment.amount} was rejected.`, repayment.organizationId || 'default_org', 'danger');
         }
         await PendingRepayment.findByIdAndDelete(repaymentId);
         res.json({ success: true });
@@ -1223,6 +1326,7 @@ app.post('/api/admin/reset', async (req, res) => {
     await Log.deleteMany({});
     await Config.deleteMany({});
     await Organization.deleteMany({});
+    await Notification.deleteMany({});
 
     await ensureDefaultOrganization();
 
@@ -1271,6 +1375,9 @@ app.post('/api/chat/send', async (req, res) => {
             imageUrl
         });
         await newMessage.save();
+
+        await createNotification(receiver, 'New Chat Message', text || 'Sent an image attachment', organizationId || 'default_org', 'info');
+
         res.json(newMessage);
     } catch (e) {
         res.status(500).json({ success: false });

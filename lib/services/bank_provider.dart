@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/transaction.dart';
@@ -27,12 +28,19 @@ class BankProvider with ChangeNotifier {
   List<OrganizationModel> _globalOrganizations = [];
   Map<String, dynamic>? _globalSummary;
   List<GlobalPostModel> _communityPosts = [];
+  List<OrganizationModel> _managementOrganizations = [];
+  Map<String, dynamic>? _managementOverview;
+  List<UserInfo> _orgMembers = [];
+  List<Map<String, dynamic>> _activeOrganizations = [];
 
   final Map<String, List<ChatMessage>> _chatCache = {};
   String? _activeChatPhone;
   bool _isLoading = false;
   String? _errorMessage;
   ThemeMode _themeMode = ThemeMode.dark; // Default to dark
+
+  Timer? _realtimeSyncTimer;
+  bool _isPolling = false;
 
   UserProfile? get user => _user;
   MemberStats? get memberStats => _memberStats;
@@ -49,17 +57,104 @@ class BankProvider with ChangeNotifier {
   List<OrganizationModel> get globalOrganizations => _globalOrganizations;
   Map<String, dynamic>? get globalSummary => _globalSummary;
   List<GlobalPostModel> get communityPosts => _communityPosts;
+  List<OrganizationModel> get managementOrganizations => _managementOrganizations;
+  Map<String, dynamic>? get managementOverview => _managementOverview;
+  List<UserInfo> get orgMembers => _orgMembers;
+  List<Map<String, dynamic>> get activeOrganizations => _activeOrganizations;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   ThemeMode get themeMode => _themeMode;
+
+  @override
+  void dispose() {
+    stopRealtimeSync();
+    super.dispose();
+  }
 
   void toggleTheme() {
     _themeMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
     notifyListeners();
   }
 
+  // ==================== REAL-TIME NOTIFICATION POLLING ====================
+
+  void startRealtimeSync() {
+    _realtimeSyncTimer?.cancel();
+    pollRealtimeNotifications();
+    _realtimeSyncTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (_user != null) {
+        pollRealtimeNotifications();
+      } else {
+        stopRealtimeSync();
+      }
+    });
+  }
+
+  void stopRealtimeSync() {
+    _realtimeSyncTimer?.cancel();
+    _realtimeSyncTimer = null;
+  }
+
+  Future<void> pollRealtimeNotifications() async {
+    if (_user == null || _isPolling) return;
+    _isPolling = true;
+
+    try {
+      final phone = _user!.token;
+      final role = _user!.role;
+      final orgCode = _user!.organizationId ?? 'default_org';
+
+      final unreadNotifs = await _apiService.fetchRealtimeNotifications(
+        phone: phone,
+        role: role,
+        orgCode: orgCode,
+      );
+
+      if (unreadNotifs.isNotEmpty) {
+        List<String> idsToMarkRead = [];
+
+        for (var notif in unreadNotifs) {
+          final id = notif['_id']?.toString();
+          final title = notif['title'] ?? 'Notification';
+          final body = notif['body'] ?? '';
+          final type = notif['type'] ?? 'info';
+          final isError = type == 'danger' || type == 'error';
+
+          if (id != null) {
+            idsToMarkRead.add(id);
+          }
+
+          // Push native system notification and floating in-app snackbar
+          await NotificationService.showSystemNotification(
+            title: title,
+            body: body,
+            isError: isError,
+          );
+        }
+
+        if (idsToMarkRead.isNotEmpty) {
+          await _apiService.markNotificationsRead(idsToMarkRead);
+        }
+
+        // Refresh internal state according to user role
+        if (role == 'admin') {
+          await refreshAdminData();
+        } else if (role == 'member') {
+          await refreshMemberData();
+        } else if (role == 'super_admin') {
+          await refreshManagementData();
+        }
+      }
+    } catch (e) {
+      debugPrint('Poll Notifications Error: $e');
+    } finally {
+      _isPolling = false;
+    }
+  }
+
   Future<bool> login(String phoneNumber, String password) async {
     // Clear any stale data before logging in
+    stopRealtimeSync();
     _user = null;
     _memberStats = null;
     _adminStats = null;
@@ -81,6 +176,8 @@ class BankProvider with ChangeNotifier {
     
     if (_user == null) {
       _errorMessage = "Login failed. Please check your credentials.";
+    } else {
+      startRealtimeSync();
     }
     
     _isLoading = false;
@@ -88,20 +185,75 @@ class BankProvider with ChangeNotifier {
     return _user != null;
   }
 
-  Future<bool> register(String phoneNumber, String password, String fullName, {String role = 'member'}) async {
+  Future<void> refreshActiveOrganizations() async {
+    try {
+      final orgs = await _apiService.fetchActiveOrganizations();
+      _activeOrganizations = orgs;
+      notifyListeners();
+    } catch (e) {
+      print('Refresh Active Orgs Error: $e');
+    }
+  }
+
+  Future<bool> registerOrganization({
+    required String name,
+    required int expectedMembers,
+    required String contactPerson,
+    required String contactPhone,
+    required String contactEmail,
+    required String description,
+    required String adminName,
+    required String adminPhone,
+    required String adminPassword,
+  }) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
-    final result = await _apiService.register(phoneNumber, password, fullName, role: role);
+    final success = await _apiService.registerOrganization(
+      name: name,
+      expectedMembers: expectedMembers,
+      contactPerson: contactPerson,
+      contactPhone: contactPhone,
+      contactEmail: contactEmail,
+      description: description,
+      adminName: adminName,
+      adminPhone: adminPhone,
+      adminPassword: adminPassword,
+    );
+
+    _isLoading = false;
+    notifyListeners();
+    return success;
+  }
+
+  Future<bool> register(
+    String phoneNumber,
+    String password,
+    String fullName, {
+    String role = 'member',
+    String organizationId = 'default_org',
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    final result = await _apiService.register(
+      phoneNumber,
+      password,
+      fullName,
+      role: role,
+      organizationId: organizationId,
+    );
 
     // Only log in automatically if we were not already logged in (Self-Registration)
     if (_user == null && result != null) {
       _user = result;
+      startRealtimeSync();
     }
 
     if (result == null) {
-      _errorMessage = "Registration failed.";
+      _errorMessage = "Registration failed. Phone number may already be registered.";
     }
 
     _isLoading = false;
@@ -120,13 +272,20 @@ class BankProvider with ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final result = await _apiService.register(phoneNumber, password, fullName, role: role);
+    final orgCode = _user?.organizationId ?? 'default_org';
+    final result = await _apiService.register(
+      phoneNumber,
+      password,
+      fullName,
+      role: role,
+      organizationId: orgCode,
+    );
 
     if (result != null) {
       await refreshAdminData();
       NotificationService.showNotification(
         title: 'User Added',
-        body: '$fullName has been successfully registered.',
+        body: '$fullName has been successfully registered to your organization.',
       );
       NotificationService.playTransactionSound();
     } else {
@@ -169,12 +328,13 @@ class BankProvider with ChangeNotifier {
     notifyListeners();
     
     try {
-      final stats = await _apiService.fetchAdminStats();
-      final pLoans = await _apiService.fetchPendingLoans();
-      final pPayouts = await _apiService.fetchPendingPayouts();
-      final pDeposits = await _apiService.fetchPendingDeposits();
-      final pRepayments = await _apiService.fetchPendingRepayments();
-      final uList = await _apiService.fetchUsers();
+      final orgCode = _user?.organizationId ?? 'default_org';
+      final stats = await _apiService.fetchAdminStats(orgCode);
+      final pLoans = await _apiService.fetchPendingLoans(orgCode);
+      final pPayouts = await _apiService.fetchPendingPayouts(orgCode);
+      final pDeposits = await _apiService.fetchPendingDeposits(orgCode);
+      final pRepayments = await _apiService.fetchPendingRepayments(orgCode);
+      final uList = await _apiService.fetchUsers(orgCode);
       
       if (stats != null) {
         // Notify Admin of new requests
@@ -330,6 +490,7 @@ class BankProvider with ChangeNotifier {
   }
 
   void logout() {
+    stopRealtimeSync();
     _user = null;
     _memberStats = null;
     _adminStats = null;
@@ -544,5 +705,38 @@ class BankProvider with ChangeNotifier {
       await refreshCommunityPosts();
     }
     return success;
+  }
+
+  // ==================== SUPER ADMIN / MANAGEMENT PORTAL ====================
+
+  Future<void> refreshManagementData() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _managementOverview = await _apiService.fetchManagementOverview();
+      _managementOrganizations = await _apiService.fetchManagementOrganizations();
+      await refreshGlobalAnalytics();
+    } catch (e) {
+      print('Refresh Management Data Error: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> approveOrganization(String orgId, bool approve) async {
+    final success = await _apiService.approveOrganization(orgId, approve);
+    if (success) {
+      NotificationService.playTransactionSound();
+      await refreshManagementData();
+    }
+    return success;
+  }
+
+  Future<List<UserInfo>> fetchOrgMembers(String orgCode) async {
+    final members = await _apiService.fetchOrganizationMembers(orgCode);
+    _orgMembers = members;
+    notifyListeners();
+    return members;
   }
 }

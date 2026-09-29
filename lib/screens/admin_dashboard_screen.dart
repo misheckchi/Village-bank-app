@@ -311,44 +311,48 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       appBar: AppBar(
         titleSpacing: 0,
         backgroundColor: theme.appBarTheme.backgroundColor,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(width: 16),
-            // Mini Brand Icon
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                border: Border.all(color: BankTheme.accentPurple, width: 1.5),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'V',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : BankTheme.lightTextPrimary,
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(width: 16),
+              // Mini Brand Icon
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  border: Border.all(color: BankTheme.accentPurple, width: 1.5),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'V',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : BankTheme.lightTextPrimary,
+                        ),
                       ),
-                    ),
-                    const TextSpan(
-                      text: 'B',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: BankTheme.accentPurple,
+                      const TextSpan(
+                        text: 'B',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: BankTheme.accentPurple,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text('Village ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.textTheme.titleLarge?.color)),
-            const Text('Bank', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: BankTheme.accentPurple)),
-          ],
+              const SizedBox(width: 8),
+              Text('Village ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.textTheme.titleLarge?.color)),
+              const Text('Bank', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: BankTheme.accentPurple)),
+            ],
+          ),
         ),
         actions: [
           IconButton(
@@ -396,75 +400,82 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 );
               }
             },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                enabled: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Administrator',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    Text(
-                      'Status: Active',
-                      style: TextStyle(fontSize: 10, color: BankTheme.statusYellow),
-                    ),
-                    Divider(),
-                  ],
+            itemBuilder: (context) {
+              final user = Provider.of<BankProvider>(context, listen: false).user;
+              return [
+                PopupMenuItem(
+                  enabled: false,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user?.name ?? 'Administrator',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      Text(
+                        'Org: ${user?.organizationName ?? "Village Bank"}',
+                        style: const TextStyle(fontSize: 10, color: BankTheme.accentPurple, fontWeight: FontWeight.bold),
+                      ),
+                      const Text(
+                        'Status: Active',
+                        style: TextStyle(fontSize: 10, color: BankTheme.statusYellow),
+                      ),
+                      const Divider(),
+                    ],
+                  ),
                 ),
-              ),
-              const PopupMenuItem(
-                value: 'analytics',
-                child: Row(
-                  children: [
-                    Icon(Icons.hub_rounded, size: 18, color: BankTheme.accentPurple),
-                    SizedBox(width: 12),
-                    Text('Global Analytics'),
-                  ],
+                const PopupMenuItem(
+                  value: 'analytics',
+                  child: Row(
+                    children: [
+                      Icon(Icons.hub_rounded, size: 18, color: BankTheme.accentPurple),
+                      SizedBox(width: 12),
+                      Text('Global Analytics'),
+                    ],
+                  ),
                 ),
-              ),
-              const PopupMenuItem(
-                value: 'forum',
-                child: Row(
-                  children: [
-                    Icon(Icons.forum_rounded, size: 18, color: Colors.amberAccent),
-                    SizedBox(width: 12),
-                    Text('Global Forum'),
-                  ],
+                const PopupMenuItem(
+                  value: 'forum',
+                  child: Row(
+                    children: [
+                      Icon(Icons.forum_rounded, size: 18, color: Colors.amberAccent),
+                      SizedBox(width: 12),
+                      Text('Global Forum'),
+                    ],
+                  ),
                 ),
-              ),
-              PopupMenuItem(
-                value: 'theme',
-                child: Row(
-                  children: [
-                    Icon(provider.themeMode == ThemeMode.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 18),
-                    const SizedBox(width: 12),
-                    Text(provider.themeMode == ThemeMode.dark ? 'Light Mode' : 'Dark Mode'),
-                  ],
+                PopupMenuItem(
+                  value: 'theme',
+                  child: Row(
+                    children: [
+                      Icon(provider.themeMode == ThemeMode.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 18),
+                      const SizedBox(width: 12),
+                      Text(provider.themeMode == ThemeMode.dark ? 'Light Mode' : 'Dark Mode'),
+                    ],
+                  ),
                 ),
-              ),
-              const PopupMenuItem(
-                value: 'releases',
-                child: Row(
-                  children: [
-                    Icon(Icons.cloud_done_rounded, size: 18),
-                    const SizedBox(width: 12),
-                    Text('Releases'),
-                  ],
+                const PopupMenuItem(
+                  value: 'releases',
+                  child: Row(
+                    children: [
+                      Icon(Icons.cloud_done_rounded, size: 18),
+                      const SizedBox(width: 12),
+                      Text('Releases'),
+                    ],
+                  ),
                 ),
-              ),
-              const PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.power_settings_new_rounded, size: 18, color: Colors.redAccent),
-                    const SizedBox(width: 12),
-                    Text('Logout', style: TextStyle(color: Colors.redAccent)),
-                  ],
+                const PopupMenuItem(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.power_settings_new_rounded, size: 18, color: Colors.redAccent),
+                      const SizedBox(width: 12),
+                      Text('Logout', style: TextStyle(color: Colors.redAccent)),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ];
+            },
           ),
           const SizedBox(width: 8),
         ],

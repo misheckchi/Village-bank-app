@@ -659,4 +659,44 @@ class ApiService {
       return false;
     }
   }
+
+  // ==================== REAL-TIME NOTIFICATION APIS ====================
+
+  Future<List<Map<String, dynamic>>> fetchRealtimeNotifications({
+    required String phone,
+    required String role,
+    required String orgCode,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/notifications?phone=$phone&role=$role&orgCode=$orgCode'),
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['notifications'] != null) {
+          return List<Map<String, dynamic>>.from(data['notifications']);
+        }
+      }
+    } catch (e) {
+      print('Fetch Realtime Notifications Error: $e');
+    }
+    return [];
+  }
+
+  Future<bool> markNotificationsRead(List<String> notificationIds) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/notifications/read'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'ids': notificationIds}),
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['success'] == true;
+      }
+    } catch (e) {
+      print('Mark Notifications Read Error: $e');
+    }
+    return false;
+  }
 }
