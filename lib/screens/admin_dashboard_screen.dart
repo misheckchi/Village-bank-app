@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
 import '../services/bank_provider.dart';
+import '../services/notification_service.dart';
 import '../utils/theme.dart';
 import '../widgets/glass_container.dart';
 import '../widgets/bank_bar_chart.dart';
