@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/transaction.dart';
 import '../models/user_model.dart';
@@ -180,7 +179,6 @@ class BankProvider with ChangeNotifier {
     _pendingRepayments = [];
     _users = [];
     _messages = [];
-    _releases = [];
 
     _isLoading = true;
     _errorMessage = null;
@@ -572,7 +570,6 @@ class BankProvider with ChangeNotifier {
     required String text,
     required String receiverPhone,
     String? transactionId,
-    String? imageUrl,
   }) async {
     if (_user == null) return false;
     
@@ -584,7 +581,6 @@ class BankProvider with ChangeNotifier {
       receiver: receiver,
       text: text,
       transactionId: transactionId,
-      imageUrl: imageUrl,
     );
     
     if (msg != null) {
@@ -602,10 +598,6 @@ class BankProvider with ChangeNotifier {
       return true;
     }
     return false;
-  }
-
-  Future<String?> uploadImage(File file) async {
-    return await _apiService.uploadImage(file);
   }
 
   // ==================== GLOBAL ANALYTICS & SHARE MANAGEMENT ====================

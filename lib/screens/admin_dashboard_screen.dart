@@ -499,59 +499,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ];
             },
           ),
-                const PopupMenuItem(
-                  value: 'analytics',
-                  child: Row(
-                    children: [
-                      Icon(Icons.hub_rounded, size: 18, color: BankTheme.accentPurple),
-                      SizedBox(width: 12),
-                      Text('Global Analytics'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'forum',
-                  child: Row(
-                    children: [
-                      Icon(Icons.forum_rounded, size: 18, color: Colors.amberAccent),
-                      SizedBox(width: 12),
-                      Text('Global Forum'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'theme',
-                  child: Row(
-                    children: [
-                      Icon(provider.themeMode == ThemeMode.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 18),
-                      const SizedBox(width: 12),
-                      Text(provider.themeMode == ThemeMode.dark ? 'Light Mode' : 'Dark Mode'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'releases',
-                  child: Row(
-                    children: [
-                      Icon(Icons.cloud_done_rounded, size: 18),
-                      const SizedBox(width: 12),
-                      Text('Releases'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'logout',
-                  child: Row(
-                    children: [
-                      Icon(Icons.power_settings_new_rounded, size: 18, color: Colors.redAccent),
-                      const SizedBox(width: 12),
-                      Text('Logout', style: TextStyle(color: Colors.redAccent)),
-                    ],
-                  ),
-                ),
-              ];
-            },
-          ),
           const SizedBox(width: 8),
         ],
       ),

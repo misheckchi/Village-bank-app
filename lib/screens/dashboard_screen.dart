@@ -982,31 +982,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ];
             },
           ),
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'releases',
-                  child: Row(
-                    children: [
-                      Icon(Icons.cloud_done_rounded, size: 18),
-                      const SizedBox(width: 12),
-                      Text('Releases'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'logout',
-                  child: Row(
-                    children: [
-                      Icon(Icons.logout_rounded, size: 18, color: Colors.redAccent),
-                      const SizedBox(width: 12),
-                      Text('Logout', style: TextStyle(color: Colors.redAccent)),
-                    ],
-                  ),
-                ),
-              ];
-            },
-          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -1357,7 +1332,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildAdminBankDetails() {
+  Widget _buildAdminBankDetails(BankProvider provider) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
