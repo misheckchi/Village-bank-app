@@ -3,8 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:telephony/telephony.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import '../models/transaction.dart';
 import '../services/bank_provider.dart';
 import '../services/notification_service.dart';
@@ -47,7 +46,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   };
 
   void _startSmsListener(TextEditingController controller) async {
-    if (kIsWeb || !Platform.isAndroid) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("SMS Fetching is only supported on Android devices.")),
       );

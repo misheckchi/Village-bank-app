@@ -1,8 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:http/http.dart' as http;
-import 'package:path/path.dart' as p;
 import '../models/organization_model.dart';
 import '../models/transaction.dart';
 import '../models/user_model.dart';
@@ -17,7 +15,7 @@ class ApiService {
     if (_isProduction) return _productionUrl;
     if (kIsWeb) return "http://localhost:3000/api";
     try {
-      if (Platform.isAndroid) return "http://$_pcIp:3000/api";
+      if (defaultTargetPlatform == TargetPlatform.android) return "http://$_pcIp:3000/api";
     } catch (e) {}
     return "http://localhost:3000/api";
   }
@@ -454,7 +452,6 @@ class ApiService {
     required String receiver,
     required String text,
     String? transactionId,
-    String? imageUrl,
   }) async {
     try {
       final response = await http.post(
@@ -465,7 +462,6 @@ class ApiService {
           'receiver': receiver,
           'text': text,
           'transactionId': transactionId,
-          'imageUrl': imageUrl,
         }),
       );
       if (response.statusCode == 200) {
@@ -473,36 +469,6 @@ class ApiService {
       }
     } catch (e) {
       print('Send Message Error: $e');
-    }
-    return null;
-  }
-
-  Future<String?> uploadImage(File file) async {
-    try {
-      final bytes = await file.readAsBytes();
-      final base64Image = base64Encode(bytes);
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}${p.extension(file.path)}';
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/upload'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'image': base64Image,
-          'fileName': fileName,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        String url = data['url'];
-
-        if (!_isProduction && !kIsWeb && Platform.isAndroid) {
-          url = url.replaceAll('localhost', _pcIp);
-        }
-        return url;
-      }
-    } catch (e) {
-      print('Upload Error: $e');
     }
     return null;
   }
