@@ -7,10 +7,6 @@ import '../utils/theme.dart';
 import '../widgets/glass_container.dart';
 import '../widgets/bank_bar_chart.dart';
 import 'auth_screen.dart';
-import 'chat_screen.dart';
-import 'release_history_screen.dart';
-import 'global_analytics_screen.dart';
-import 'global_community_thread_screen.dart';
 
 class SuperAdminDashboardScreen extends StatefulWidget {
   const SuperAdminDashboardScreen({super.key});
@@ -324,20 +320,6 @@ class _SuperAdminDashboardScreenState extends State<SuperAdminDashboardScreen> {
             onPressed: provider.refreshManagementData,
           ),
           IconButton(
-            icon: const Icon(Icons.hub_rounded, size: 20, color: BankTheme.accentPurple),
-            tooltip: 'Global Analytics',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (context) => const GlobalAnalyticsScreen(),
-            )),
-          ),
-          IconButton(
-            icon: const Icon(Icons.forum_rounded, size: 20, color: Colors.amberAccent),
-            tooltip: 'Global Community Forum',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (context) => const GlobalCommunityThreadScreen(),
-            )),
-          ),
-          IconButton(
             icon: Icon(
               provider.themeMode == ThemeMode.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
               color: BankTheme.textMuted,
@@ -347,13 +329,7 @@ class _SuperAdminDashboardScreenState extends State<SuperAdminDashboardScreen> {
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert_rounded, color: BankTheme.textMuted),
             onSelected: (value) {
-              if (value == 'analytics') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const GlobalAnalyticsScreen()));
-              } else if (value == 'forum') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const GlobalCommunityThreadScreen()));
-              } else if (value == 'releases') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const ReleaseHistoryScreen()));
-              } else if (value == 'logout') {
+              if (value == 'logout') {
                 provider.logout();
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (context) => const AuthScreen()),
@@ -376,36 +352,6 @@ class _SuperAdminDashboardScreenState extends State<SuperAdminDashboardScreen> {
                       style: TextStyle(fontSize: 10, color: BankTheme.statusYellow),
                     ),
                     Divider(),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'analytics',
-                child: Row(
-                  children: [
-                    Icon(Icons.hub_rounded, size: 18, color: BankTheme.accentPurple),
-                    SizedBox(width: 12),
-                    Text('Global Analytics'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'forum',
-                child: Row(
-                  children: [
-                    Icon(Icons.forum_rounded, size: 18, color: Colors.amberAccent),
-                    SizedBox(width: 12),
-                    Text('Community Forum'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'releases',
-                child: Row(
-                  children: [
-                    Icon(Icons.cloud_done_rounded, size: 18),
-                    SizedBox(width: 12),
-                    Text('Releases'),
                   ],
                 ),
               ),

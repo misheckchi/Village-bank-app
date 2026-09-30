@@ -7,8 +7,6 @@ import '../models/organization_model.dart';
 import '../models/transaction.dart';
 import '../models/user_model.dart';
 import '../models/chat_message.dart';
-import '../models/release_record.dart';
-import '../models/global_post_model.dart';
 
 class ApiService {
   static const String _pcIp = "172.20.10.12";
@@ -509,44 +507,20 @@ class ApiService {
     return null;
   }
 
-  // Release Tracking APIs
-  Future<List<ReleaseRecord>> fetchReleases() async {
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/releases'));
-      if (response.statusCode == 200) {
-        List data = json.decode(response.body);
-        return data.map((item) => ReleaseRecord.fromJson(item)).toList();
-      }
-    } catch (e) {
-      print('Fetch Releases Error: $e');
-    }
-    return [];
-  }
-
-  Future<bool> logRelease({
-    required String version,
-    required String buildNumber,
-    required String downloadUrl,
-    required String notes,
-  }) async {
+  Future<bool> updateAdminAccountNumber(String orgCode, String adminPhone) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/releases/log'),
+        Uri.parse('$baseUrl/admin/update-account-number'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'version': version,
-          'buildNumber': buildNumber,
-          'downloadUrl': downloadUrl,
-          'notes': notes,
-        }),
+        body: json.encode({'orgCode': orgCode, 'adminPhone': adminPhone}),
       );
-      return response.statusCode == 200;
+      final data = json.decode(response.body);
+      return response.statusCode == 200 && data['success'] == true;
     } catch (e) {
+      print('Update Account Number Error: $e');
       return false;
     }
   }
-
-  // ==================== GLOBAL ANALYTICS & COMMUNITY THREAD APIS ====================
 
   Future<Map<String, dynamic>?> fetchGlobalAnalytics() async {
     try {
@@ -574,88 +548,6 @@ class ApiService {
       return response.statusCode == 200 && data['success'] == true;
     } catch (e) {
       print('Update Share Percentage Error: $e');
-      return false;
-    }
-  }
-
-  Future<List<GlobalPostModel>> fetchGlobalCommunityPosts() async {
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/community/posts'));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          List posts = data['posts'];
-          return posts.map((p) => GlobalPostModel.fromJson(p)).toList();
-        }
-      }
-    } catch (e) {
-      print('Fetch Community Posts Error: $e');
-    }
-    return [];
-  }
-
-  Future<bool> createGlobalCommunityPost({
-    required String title,
-    required String content,
-    required String authorName,
-    required String authorOrg,
-    required String authorPhone,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/community/posts'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'title': title,
-          'content': content,
-          'authorName': authorName,
-          'authorOrg': authorOrg,
-          'authorPhone': authorPhone,
-        }),
-      );
-      final data = json.decode(response.body);
-      return response.statusCode == 200 && data['success'] == true;
-    } catch (e) {
-      print('Create Community Post Error: $e');
-      return false;
-    }
-  }
-
-  Future<bool> replyGlobalCommunityPost({
-    required String postId,
-    required String authorName,
-    required String authorOrg,
-    required String content,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/community/posts/$postId/reply'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'authorName': authorName,
-          'authorOrg': authorOrg,
-          'content': content,
-        }),
-      );
-      final data = json.decode(response.body);
-      return response.statusCode == 200 && data['success'] == true;
-    } catch (e) {
-      print('Reply Community Post Error: $e');
-      return false;
-    }
-  }
-
-  Future<bool> likeGlobalCommunityPost(String postId, String userPhone) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/community/posts/$postId/like'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'userPhone': userPhone}),
-      );
-      final data = json.decode(response.body);
-      return response.statusCode == 200 && data['success'] == true;
-    } catch (e) {
-      print('Like Post Error: $e');
       return false;
     }
   }

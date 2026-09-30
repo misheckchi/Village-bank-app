@@ -65,7 +65,9 @@ class MemberStats {
   final double accruedInterest;
   final double totalToRepay;
   final double interestRate;
+  final double sharePercentage;
   final int pendingLoanCount;
+  final String adminPhone;
 
   MemberStats({
     required this.savings,
@@ -74,7 +76,9 @@ class MemberStats {
     required this.accruedInterest,
     required this.totalToRepay,
     required this.interestRate,
+    this.sharePercentage = 25.0,
     this.pendingLoanCount = 0,
+    this.adminPhone = '0881689220',
   });
 
   factory MemberStats.fromJson(Map<String, dynamic> json) {
@@ -85,7 +89,9 @@ class MemberStats {
       accruedInterest: (json['accruedInterest'] as num?)?.toDouble() ?? 0.0,
       totalToRepay: (json['totalToRepay'] as num?)?.toDouble() ?? 0.0,
       interestRate: (json['interestRate'] as num?)?.toDouble() ?? 35.0,
+      sharePercentage: (json['sharePercentage'] as num?)?.toDouble() ?? 25.0,
       pendingLoanCount: json['pendingLoanCount'] ?? 0,
+      adminPhone: json['adminPhone'] ?? '0881689220',
     );
   }
 }

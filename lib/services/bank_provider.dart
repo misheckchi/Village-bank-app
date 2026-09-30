@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/transaction.dart';
 import '../models/user_model.dart';
 import '../models/chat_message.dart';
-import '../models/release_record.dart';
 import '../models/organization_model.dart';
-import '../models/global_post_model.dart';
 import 'api_service.dart';
 import 'notification_service.dart';
 
@@ -24,10 +22,8 @@ class BankProvider with ChangeNotifier {
   List<SystemLog> _logs = [];
   List<UserInfo> _users = [];
   List<ChatMessage> _messages = [];
-  List<ReleaseRecord> _releases = [];
   List<OrganizationModel> _globalOrganizations = [];
   Map<String, dynamic>? _globalSummary;
-  List<GlobalPostModel> _communityPosts = [];
   List<OrganizationModel> _managementOrganizations = [];
   Map<String, dynamic>? _managementOverview;
   List<UserInfo> _orgMembers = [];
@@ -54,10 +50,8 @@ class BankProvider with ChangeNotifier {
   List<SystemLog> get logs => _logs;
   List<UserInfo> get users => _users;
   List<ChatMessage> get messages => _messages;
-  List<ReleaseRecord> get releases => _releases;
   List<OrganizationModel> get globalOrganizations => _globalOrganizations;
   Map<String, dynamic>? get globalSummary => _globalSummary;
-  List<GlobalPostModel> get communityPosts => _communityPosts;
   List<OrganizationModel> get managementOrganizations => _managementOrganizations;
   Map<String, dynamic>? get managementOverview => _managementOverview;
   List<UserInfo> get orgMembers => _orgMembers;
@@ -522,7 +516,6 @@ class BankProvider with ChangeNotifier {
     _pendingRepayments = [];
     _users = [];
     _messages = [];
-    _releases = [];
     _chatCache.clear();
     _activeChatPhone = null;
     _errorMessage = null;
@@ -615,38 +608,7 @@ class BankProvider with ChangeNotifier {
     return await _apiService.uploadImage(file);
   }
 
-  Future<void> refreshReleases() async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      _releases = await _apiService.fetchReleases();
-    } catch (e) {
-      print('Refresh Releases Error: $e');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<bool> logNewRelease({
-    required String version,
-    required String buildNumber,
-    required String downloadUrl,
-    required String notes,
-  }) async {
-    final success = await _apiService.logRelease(
-      version: version,
-      buildNumber: buildNumber,
-      downloadUrl: downloadUrl,
-      notes: notes,
-    );
-    if (success) {
-      await refreshReleases();
-    }
-    return success;
-  }
-
-  // ==================== GLOBAL ANALYTICS & COMMUNITY THREAD ====================
+  // ==================== GLOBAL ANALYTICS & SHARE MANAGEMENT ====================
 
   Future<void> refreshGlobalAnalytics() async {
     _isLoading = true;
@@ -671,59 +633,6 @@ class BankProvider with ChangeNotifier {
     if (success) {
       await refreshGlobalAnalytics();
       await refreshAdminData();
-    }
-    return success;
-  }
-
-  Future<void> refreshCommunityPosts() async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      _communityPosts = await _apiService.fetchGlobalCommunityPosts();
-    } catch (e) {
-      print('Refresh Community Posts Error: $e');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<bool> createCommunityPost(String title, String content) async {
-    if (_user == null) return false;
-    final success = await _apiService.createGlobalCommunityPost(
-      title: title,
-      content: content,
-      authorName: _user!.name,
-      authorOrg: _user!.organizationName ?? 'Village Bank Member',
-      authorPhone: _user!.token,
-    );
-    if (success) {
-      NotificationService.playTransactionSound();
-      await refreshCommunityPosts();
-    }
-    return success;
-  }
-
-  Future<bool> replyToCommunityPost(String postId, String content) async {
-    if (_user == null) return false;
-    final success = await _apiService.replyGlobalCommunityPost(
-      postId: postId,
-      authorName: _user!.name,
-      authorOrg: _user!.organizationName ?? 'Village Bank Member',
-      content: content,
-    );
-    if (success) {
-      NotificationService.playTransactionSound();
-      await refreshCommunityPosts();
-    }
-    return success;
-  }
-
-  Future<bool> likeCommunityPost(String postId) async {
-    if (_user == null) return false;
-    final success = await _apiService.likeGlobalCommunityPost(postId, _user!.token);
-    if (success) {
-      await refreshCommunityPosts();
     }
     return success;
   }
@@ -759,5 +668,15 @@ class BankProvider with ChangeNotifier {
     _orgMembers = members;
     notifyListeners();
     return members;
+  }
+
+  Future<bool> updateAdminAccountNumber(String adminPhone) async {
+    if (_user == null) return false;
+    final orgCode = _user!.organizationId;
+    final success = await _apiService.updateAdminAccountNumber(orgCode, adminPhone);
+    if (success) {
+      await refreshAdminData();
+    }
+    return success;
   }
 }

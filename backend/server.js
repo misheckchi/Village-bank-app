@@ -3,22 +3,13 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
-const fs = require('fs');
-const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const INTEREST_RATE = 0.35; // 35%
-
-// Ensure uploads directory exists
-if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR);
-}
 
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
-app.use('/uploads', express.static(UPLOADS_DIR));
 
 // MongoDB Connection
 const mongoUri = process.env.MONGODB_URI;
@@ -133,23 +124,6 @@ const MessageSchema = new mongoose.Schema({
     receiver: String,
     text: String,
     transactionId: String,
-    imageUrl: String,
-    timestamp: { type: Date, default: Date.now }
-});
-
-const GlobalThreadPostSchema = new mongoose.Schema({
-    title: { type: String, required: true },
-    content: { type: String, required: true },
-    authorName: { type: String, required: true },
-    authorOrg: { type: String, default: 'Village Bank' },
-    authorPhone: { type: String, default: '' },
-    likes: [{ type: String }],
-    replies: [{
-        authorName: String,
-        authorOrg: String,
-        content: String,
-        timestamp: { type: Date, default: Date.now }
-    }],
     timestamp: { type: Date, default: Date.now }
 });
 
@@ -159,14 +133,6 @@ const LogSchema = new mongoose.Schema({
     desc: String,
     time: String,
     type: String,
-    timestamp: { type: Date, default: Date.now }
-});
-
-const ReleaseSchema = new mongoose.Schema({
-    version: String,
-    buildNumber: String,
-    downloadUrl: String,
-    notes: String,
     timestamp: { type: Date, default: Date.now }
 });
 
@@ -194,9 +160,7 @@ const PendingLoan = mongoose.model('PendingLoan', PendingLoanSchema);
 const PendingPayout = mongoose.model('PendingPayout', PendingPayoutSchema);
 const PendingRepayment = mongoose.model('PendingRepayment', PendingRepaymentSchema);
 const Message = mongoose.model('Message', MessageSchema);
-const GlobalThreadPost = mongoose.model('GlobalThreadPost', GlobalThreadPostSchema);
 const Log = mongoose.model('Log', LogSchema);
-const Release = mongoose.model('Release', ReleaseSchema);
 const Config = mongoose.model('Config', ConfigSchema);
 const Notification = mongoose.model('Notification', NotificationSchema);
 
@@ -609,6 +573,10 @@ app.get('/api/member/summary', async (req, res) => {
         const user = await User.findOne({ phoneNumber: phone });
         if (!user) return res.status(404).json({ message: 'User not found' });
 
+        const org = await Organization.findOne({ code: user.organizationId || 'default_org' });
+        const adminPhone = org ? (org.adminPhone || org.contactPhone || '0881689220') : '0881689220';
+        const sharePercentage = org ? (org.sharePercentage || 25) : 25;
+
         const pendingLoanCount = await PendingLoan.countDocuments({ requestedByPhone: phone, status: 'pending' });
         const accruedInterest = user.interest !== undefined ? user.interest : (user.loan * INTEREST_RATE);
         res.json({
@@ -618,11 +586,42 @@ app.get('/api/member/summary', async (req, res) => {
             accruedInterest: accruedInterest,
             totalToRepay: user.loan + accruedInterest,
             interestRate: INTEREST_RATE * 100,
+            sharePercentage: sharePercentage,
             pendingLoanCount: pendingLoanCount,
-            organizationId: user.organizationId
+            organizationId: user.organizationId,
+            adminPhone: adminPhone
         });
     } catch (e) {
         res.status(500).json({ message: 'Error' });
+    }
+});
+
+app.post('/api/admin/update-account-number', async (req, res) => {
+    const { orgCode, adminPhone } = req.body;
+    if (!orgCode || !adminPhone) {
+        return res.status(400).json({ success: false, message: 'Missing required parameters' });
+    }
+    try {
+        const org = await Organization.findOne({ code: orgCode });
+        if (org) {
+            org.adminPhone = adminPhone;
+            org.contactPhone = adminPhone;
+            await org.save();
+
+            await new Log({
+                organizationId: orgCode,
+                title: 'ACCOUNT NUMBER UPDATED',
+                desc: `Organization receiving account number updated to ${adminPhone}.`,
+                time: 'Now',
+                type: 'info'
+            }).save();
+
+            res.json({ success: true, adminPhone: adminPhone, message: 'Organization account number updated successfully' });
+        } else {
+            res.status(404).json({ success: false, message: 'Organization not found' });
+        }
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Server error updating account number' });
     }
 });
 
@@ -1216,85 +1215,6 @@ app.get('/api/analytics/global', async (req, res) => {
     }
 });
 
-// ==================== GLOBAL COMMUNITY THREAD ENDPOINTS ====================
-
-app.get('/api/community/posts', async (req, res) => {
-    try {
-        const posts = await GlobalThreadPost.find({}).sort({ timestamp: -1 }).limit(100);
-        res.json({ success: true, posts });
-    } catch (e) {
-        res.status(500).json({ success: false, posts: [] });
-    }
-});
-
-app.post('/api/community/posts', async (req, res) => {
-    const { title, content, authorName, authorOrg, authorPhone } = req.body;
-    if (!title || !content || !authorName) {
-        return res.status(400).json({ success: false, message: 'Title, content and author are required.' });
-    }
-    try {
-        const newPost = new GlobalThreadPost({
-            title,
-            content,
-            authorName,
-            authorOrg: authorOrg || 'Village Bank Member',
-            authorPhone: authorPhone || '',
-            likes: [],
-            replies: []
-        });
-        await newPost.save();
-        res.json({ success: true, post: newPost });
-    } catch (e) {
-        res.status(500).json({ success: false, message: 'Failed to create post.' });
-    }
-});
-
-app.post('/api/community/posts/:id/reply', async (req, res) => {
-    const { id } = req.params;
-    const { authorName, authorOrg, content } = req.body;
-    if (!content || !authorName) {
-        return res.status(400).json({ success: false, message: 'Reply content and author name are required.' });
-    }
-    try {
-        const post = await GlobalThreadPost.findById(id);
-        if (!post) return res.status(404).json({ success: false, message: 'Post not found.' });
-
-        post.replies.push({
-            authorName,
-            authorOrg: authorOrg || 'Village Bank Member',
-            content,
-            timestamp: new Date()
-        });
-        await post.save();
-
-        res.json({ success: true, post });
-    } catch (e) {
-        res.status(500).json({ success: false, message: 'Error adding reply.' });
-    }
-});
-
-app.post('/api/community/posts/:id/like', async (req, res) => {
-    const { id } = req.params;
-    const { userPhone } = req.body;
-    try {
-        const post = await GlobalThreadPost.findById(id);
-        if (!post) return res.status(404).json({ success: false, message: 'Post not found.' });
-
-        const phone = userPhone || 'anonymous';
-        const index = post.likes.indexOf(phone);
-        if (index > -1) {
-            post.likes.splice(index, 1);
-        } else {
-            post.likes.push(phone);
-        }
-        await post.save();
-
-        res.json({ success: true, likesCount: post.likes.length, isLiked: index === -1 });
-    } catch (e) {
-        res.status(500).json({ success: false, message: 'Error updating like.' });
-    }
-});
-
 app.get('/api/admin/logs', async (req, res) => {
     const orgCode = req.query.orgCode;
     const filter = orgCode && orgCode !== 'all' ? { organizationId: orgCode } : {};
@@ -1367,19 +1287,18 @@ app.get('/api/chat', async (req, res) => {
 });
 
 app.post('/api/chat/send', async (req, res) => {
-    const { sender, receiver, text, transactionId, imageUrl, organizationId } = req.body;
+    const { sender, receiver, text, transactionId, organizationId } = req.body;
     try {
         const newMessage = new Message({
             organizationId: organizationId || 'default_org',
             sender,
             receiver,
             text,
-            transactionId,
-            imageUrl
+            transactionId
         });
         await newMessage.save();
 
-        await createNotification(receiver, 'New Chat Message', text || 'Sent an image attachment', organizationId || 'default_org', 'info');
+        await createNotification(receiver, 'New Chat Message', text || 'New message received', organizationId || 'default_org', 'info');
 
         res.json(newMessage);
     } catch (e) {
@@ -1387,53 +1306,149 @@ app.post('/api/chat/send', async (req, res) => {
     }
 });
 
-// Simple base64 upload handler
-app.post('/api/upload', (req, res) => {
-    const { image, fileName } = req.body;
-    if (!image || !fileName) {
-        return res.status(400).json({ success: false, message: 'Missing image data' });
+// ==================== PAYCHANGU MERCHANT GATEWAY ENDPOINTS ====================
+
+const PAYCHANGU_SECRET_KEY = process.env.PAYCHANGU_SECRET_KEY || 'sec_key_placeholder';
+const PAYCHANGU_PUBLIC_KEY = process.env.PAYCHANGU_PUBLIC_KEY || 'pub_key_placeholder';
+
+// Create PayChangu Checkout Session / Direct Mobile Money Payment
+app.post('/api/paychangu/create-payment', async (req, res) => {
+    const { amount, phone, email, type, organizationId } = req.body;
+
+    if (!amount || !phone) {
+        return res.status(400).json({ success: false, message: 'Amount and phone number are required.' });
     }
 
-    const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
-    const filePath = path.join(UPLOADS_DIR, fileName);
+    try {
+        const tx_ref = `VB-${type ? type.toUpperCase() : 'DEP'}-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    fs.writeFile(filePath, base64Data, 'base64', (err) => {
-        if (err) {
-            console.error('Upload error:', err);
-            return res.status(500).json({ success: false });
+        const payload = {
+            amount: parseFloat(amount),
+            currency: 'MWK',
+            email: email || `${phone}@villagebank.app`,
+            first_name: 'VillageBank',
+            last_name: 'Member',
+            phone: phone,
+            tx_ref: tx_ref,
+            callback_url: `${req.protocol}://${req.get('host')}/api/paychangu/webhook`,
+            return_url: `${req.protocol}://${req.get('host')}/api/paychangu/return`,
+            customization: {
+                title: 'Village Bank Deposit',
+                description: `Payment for ${organizationId || 'Village Bank'}`
+            }
+        };
+
+        if (PAYCHANGU_SECRET_KEY !== 'sec_key_placeholder') {
+            const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+            const payChanguRes = await fetch('https://api.paychangu.com/payment', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${PAYCHANGU_SECRET_KEY}`
+                },
+                body: JSON.stringify(payload)
+            });
+            const payChanguData = await payChanguRes.json();
+            return res.json({ success: true, tx_ref, data: payChanguData });
         }
 
-        const protocol = req.protocol;
-        const host = req.get('host');
-        const url = `${protocol}://${host}/uploads/${fileName}`;
-
-        res.json({ success: true, url });
-    });
-});
-
-// Release Tracking Endpoints
-app.get('/api/releases', async (req, res) => {
-    const releases = await Release.find({}).sort({ timestamp: -1 });
-    res.json(releases);
-});
-
-app.post('/api/releases/log', async (req, res) => {
-    const { version, buildNumber, downloadUrl, notes } = req.body;
-    try {
-        const newRelease = new Release({ version, buildNumber, downloadUrl, notes });
-        await newRelease.save();
-
-        await new Log({
-            organizationId: 'default_org',
-            title: 'NEW RELEASE LOGGED',
-            desc: `Version ${version}+${buildNumber} is now available.`,
-            time: 'Now',
-            type: 'info'
-        }).save();
-
-        res.json({ success: true, release: newRelease });
+        res.json({
+            success: true,
+            mode: 'simulation',
+            tx_ref,
+            message: 'PayChangu payment session created. Enter merchant API key in .env to activate live sessions.',
+            checkout_url: `https://paychangu.com/checkout/simulate?tx_ref=${tx_ref}&amount=${amount}`
+        });
     } catch (e) {
-        res.status(500).json({ success: false });
+        console.error('PayChangu Session Error:', e);
+        res.status(500).json({ success: false, message: 'Failed to initiate PayChangu payment session.' });
+    }
+});
+
+// PayChangu Automated Webhook Listener
+app.post('/api/paychangu/webhook', async (req, res) => {
+    try {
+        const event = req.body;
+        console.log('[PayChangu Webhook Event Received]:', JSON.stringify(event));
+
+        const { status, tx_ref, amount, phone } = event.data || event;
+
+        if (status === 'success' || status === 'successful') {
+            const userPhone = phone || (tx_ref ? tx_ref.split('-')[2] : null);
+            if (userPhone) {
+                const user = await User.findOne({ phoneNumber: userPhone });
+                if (user) {
+                    user.savings += parseFloat(amount);
+                    await user.save();
+
+                    await new Transaction({
+                        organizationId: user.organizationId || 'default_org',
+                        owner: user.phoneNumber,
+                        title: 'PayChangu Instant Deposit',
+                        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                        amount: parseFloat(amount),
+                        type: 'deposit'
+                    }).save();
+
+                    await new Log({
+                        organizationId: user.organizationId || 'default_org',
+                        title: 'PAYCHANGU DEPOSIT VERIFIED',
+                        desc: `MK ${amount} credited to ${user.name} via PayChangu (Ref: ${tx_ref})`,
+                        time: 'Now',
+                        type: 'success'
+                    }).save();
+                }
+            }
+        }
+        res.status(200).json({ status: 'ok' });
+    } catch (e) {
+        console.error('PayChangu Webhook Error:', e);
+        res.status(500).json({ status: 'error' });
+    }
+});
+
+// PayChangu Automated Direct Payout / Disbursement
+app.post('/api/paychangu/payout', async (req, res) => {
+    const { amount, recipientPhone } = req.body;
+
+    if (!amount || !recipientPhone) {
+        return res.status(400).json({ success: false, message: 'Amount and recipient phone required' });
+    }
+
+    try {
+        const payout_ref = `PO-${Date.now()}-${recipientPhone}`;
+
+        if (PAYCHANGU_SECRET_KEY !== 'sec_key_placeholder') {
+            const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+            const payChanguRes = await fetch('https://api.paychangu.com/mobile-money/disbursements', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${PAYCHANGU_SECRET_KEY}`
+                },
+                body: JSON.stringify({
+                    amount: parseFloat(amount),
+                    currency: 'MWK',
+                    mobile: recipientPhone,
+                    mobile_money_operator: recipientPhone.startsWith('088') || recipientPhone.startsWith('031') ? 'TNM' : 'AIRTEL',
+                    charge_id: payout_ref
+                })
+            });
+            const data = await payChanguRes.json();
+            return res.json({ success: true, payout_ref, data });
+        }
+
+        res.json({
+            success: true,
+            mode: 'simulation',
+            payout_ref,
+            message: `MK ${amount} disbursement queued for ${recipientPhone} via PayChangu.`
+        });
+    } catch (e) {
+        console.error('PayChangu Payout Error:', e);
+        res.status(500).json({ success: false, message: 'Payout failed' });
     }
 });
 

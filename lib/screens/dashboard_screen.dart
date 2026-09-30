@@ -13,9 +13,6 @@ import '../widgets/glass_container.dart';
 import '../widgets/bank_bar_chart.dart';
 import 'auth_screen.dart';
 import 'chat_screen.dart';
-import 'release_history_screen.dart';
-import 'global_analytics_screen.dart';
-import 'global_community_thread_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -116,13 +113,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String? baseCode = _ussdCodes[_selectedPaymentMethod];
     if (baseCode == null) return;
 
+    final adminPhone = Provider.of<BankProvider>(context, listen: false).memberStats?.adminPhone ?? "0881689220";
+
     String fullCode = baseCode;
     if (_selectedPaymentMethod == 'Airtel Money') {
-      fullCode = "*211*3*0881689220*$amount#";
+      fullCode = "*211*3*$adminPhone*$amount#";
     } else if (_selectedPaymentMethod == 'TNM Mpamba') {
-      fullCode = "*444*3*1*0881689220*$amount#";
+      fullCode = "*444*3*1*$adminPhone*$amount#";
     } else if (_selectedPaymentMethod == 'National Bank (626)') {
-      fullCode = "*626*5*1*0881689220*$amount#";
+      fullCode = "*626*5*1*$adminPhone*$amount#";
     }
 
     final Uri telUri = Uri.parse("tel:${fullCode.replaceAll('#', '%23')}");
@@ -188,14 +187,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _callAdmin() async {
-    const String adminPhone = "0881689220";
+    final adminPhone = Provider.of<BankProvider>(context, listen: false).memberStats?.adminPhone ?? "0881689220";
     final Uri telUri = Uri.parse("tel:$adminPhone");
     if (await canLaunchUrl(telUri)) {
       await launchUrl(telUri);
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not launch phone dialer for 0881689220')),
+          SnackBar(content: Text('Could not launch phone dialer for $adminPhone')),
         );
       }
     }
@@ -904,20 +903,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.hub_rounded, size: 20, color: BankTheme.accentPurple),
-            tooltip: 'Global Analytics',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (context) => const GlobalAnalyticsScreen(),
-            )),
-          ),
-          IconButton(
-            icon: const Icon(Icons.forum_rounded, size: 20, color: Colors.amberAccent),
-            tooltip: 'Global Idea Forum',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (context) => const GlobalCommunityThreadScreen(),
-            )),
-          ),
-          IconButton(
             icon: const Icon(Icons.phone_rounded, size: 20, color: Colors.greenAccent),
             tooltip: 'Call Admin Direct',
             onPressed: _callAdmin,
@@ -937,14 +922,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert_rounded, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
             onSelected: (value) {
-              if (value == 'analytics') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const GlobalAnalyticsScreen()));
-              } else if (value == 'forum') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const GlobalCommunityThreadScreen()));
-              } else if (value == 'theme') {
+              if (value == 'theme') {
                 Provider.of<BankProvider>(context, listen: false).toggleTheme();
-              } else if (value == 'releases') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const ReleaseHistoryScreen()));
               } else if (value == 'logout') {
                 Provider.of<BankProvider>(context, listen: false).logout();
                 Navigator.of(context).pushAndRemoveUntil(
@@ -981,26 +960,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                 ),
-                const PopupMenuItem(
-                  value: 'analytics',
-                  child: Row(
-                    children: [
-                      Icon(Icons.hub_rounded, size: 18, color: BankTheme.accentPurple),
-                      SizedBox(width: 12),
-                      Text('Global Analytics'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'forum',
-                  child: Row(
-                    children: [
-                      Icon(Icons.forum_rounded, size: 18, color: Colors.amberAccent),
-                      SizedBox(width: 12),
-                      Text('Global Forum'),
-                    ],
-                  ),
-                ),
                 PopupMenuItem(
                   value: 'theme',
                   child: Row(
@@ -1009,6 +968,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(width: 12),
                       Text(isDark ? 'Light Mode' : 'Dark Mode'),
                     ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout_rounded, size: 18, color: Colors.redAccent),
+                      const SizedBox(width: 12),
+                      Text('Logout', style: TextStyle(color: Colors.redAccent)),
+                    ],
+                  ),
+                ),
+              ];
+            },
+          ),
                   ),
                 ),
                 const PopupMenuItem(
@@ -1309,6 +1283,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     
     if (stats == null) return const Center(child: CircularProgressIndicator());
 
+    final double memberShare = stats.sharePercentage;
+    final double orgReserve = 5.0;
+    final double managementCut = 5.0;
+
     final List<BarData> chartData = [
       BarData(name: 'Total Savings', value: stats.savings, color: Colors.greenAccent),
       BarData(name: 'Loan Balance', value: stats.loan, color: Colors.orangeAccent),
@@ -1333,18 +1311,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('PROFIT DISTRIBUTION', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: BankTheme.accentPurple, letterSpacing: 2)),
+              const Text('PROFIT DISTRIBUTION YIELD', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: BankTheme.accentPurple, letterSpacing: 2)),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildCircularProgressIndicator('Member (30%)', 0.30, Colors.greenAccent),
-                  _buildCircularProgressIndicator('Bank (5%)', 0.05, Colors.redAccent),
+                  _buildCircularProgressIndicator('Member (${memberShare.toStringAsFixed(0)}%)', memberShare / 100, Colors.greenAccent),
+                  _buildCircularProgressIndicator('Reserve (5%)', orgReserve / 100, Colors.orangeAccent),
+                  _buildCircularProgressIndicator('Portal (5%)', managementCut / 100, Colors.redAccent),
                 ],
               ),
               const SizedBox(height: 32),
               Text(
-                'Your current loan structure yields 30% profit back to your savings pool, while 5% supports the village bank administration.',
+                'Your organization (${provider.user?.organizationName ?? 'Village Bank'}) distributes ${memberShare.toStringAsFixed(0)}% profit back to your member savings pool upon loan repayment, while 5% supports the local group reserve and 5% platform management.',
                 style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontSize: 13, height: 1.5),
               ),
             ],
@@ -1409,7 +1388,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
               icon: const Icon(Icons.phone_rounded, color: Colors.black, size: 20),
-              label: const Text('CALL ADMIN DIRECTLY (0881689220)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              label: Text('CALL ADMIN DIRECTLY (${provider.memberStats?.adminPhone ?? "0881689220"})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               onPressed: _callAdmin,
             ),
           ),

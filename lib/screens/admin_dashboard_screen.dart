@@ -9,9 +9,6 @@ import '../widgets/glass_container.dart';
 import '../widgets/bank_bar_chart.dart';
 import 'auth_screen.dart';
 import 'chat_screen.dart';
-import 'release_history_screen.dart';
-import 'global_analytics_screen.dart';
-import 'global_community_thread_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -278,6 +275,71 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _showChangeAccountNumberDialog() {
+    final provider = Provider.of<BankProvider>(context, listen: false);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final controller = TextEditingController(text: provider.user?.token ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        title: Text(
+          'UPDATE ACCOUNT NUMBER',
+          style: TextStyle(
+            color: isDark ? Colors.white : BankTheme.lightTextPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Set your organization receiving phone number/account for member USSD deposits and repayments.',
+              style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: controller,
+              style: TextStyle(color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+              decoration: const InputDecoration(
+                labelText: 'Organization Phone / Account Number',
+                hintText: 'e.g. 0991234567 or 0881234567',
+                prefixIcon: Icon(Icons.phone_android_rounded, color: BankTheme.accentPurple),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL', style: TextStyle(color: BankTheme.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newPhone = controller.text.trim();
+              if (newPhone.isNotEmpty) {
+                final success = await provider.updateAdminAccountNumber(newPhone);
+                if (mounted) {
+                  Navigator.pop(context);
+                  if (success) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Receiving account number updated to $newPhone')),
+                    );
+                  }
+                }
+              }
+            },
+            child: const Text('UPDATE'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showResetConfirmation() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -366,20 +428,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.hub_rounded, size: 20, color: BankTheme.accentPurple),
-            tooltip: 'Global Analytics',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (context) => const GlobalAnalyticsScreen(),
-            )),
-          ),
-          IconButton(
-            icon: const Icon(Icons.forum_rounded, size: 20, color: Colors.amberAccent),
-            tooltip: 'Global Idea Forum',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (context) => const GlobalCommunityThreadScreen(),
-            )),
-          ),
-          IconButton(
             icon: Icon(Icons.group_rounded, size: 20, color: BankTheme.textMuted),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (context) => const ChatScreen(otherUserPhone: 'group', otherUserName: 'Community Group Chat'),
@@ -394,14 +442,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert_rounded, color: BankTheme.textMuted),
             onSelected: (value) {
-              if (value == 'analytics') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const GlobalAnalyticsScreen()));
-              } else if (value == 'forum') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const GlobalCommunityThreadScreen()));
-              } else if (value == 'theme') {
+              if (value == 'theme') {
                 provider.toggleTheme();
-              } else if (value == 'releases') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (context) => const ReleaseHistoryScreen()));
               } else if (value == 'logout') {
                 Provider.of<BankProvider>(context, listen: false).logout();
                 Navigator.of(context).pushAndRemoveUntil(
@@ -434,6 +476,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ],
                   ),
                 ),
+                PopupMenuItem(
+                  value: 'theme',
+                  child: Row(
+                    children: [
+                      Icon(provider.themeMode == ThemeMode.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 18),
+                      const SizedBox(width: 12),
+                      Text(provider.themeMode == ThemeMode.dark ? 'Light Mode' : 'Dark Mode'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.power_settings_new_rounded, size: 18, color: Colors.redAccent),
+                      const SizedBox(width: 12),
+                      Text('Logout', style: TextStyle(color: Colors.redAccent)),
+                    ],
+                  ),
+                ),
+              ];
+            },
+          ),
                 const PopupMenuItem(
                   value: 'analytics',
                   child: Row(
@@ -754,7 +819,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     onTap: () => setState(() => _activeTabIndex = 4),
                   ),
                   const SizedBox(width: 16),
-                  const Expanded(child: SizedBox()),
+                  _buildActionTile(
+                    Icons.phone_android_rounded, 
+                    'RECEIVING ACCOUNT', 
+                    provider.user?.token ?? 'UPDATE NUMBER',
+                    onTap: _showChangeAccountNumberDialog,
+                  ),
                 ],
               ),
               const SizedBox(height: 32),

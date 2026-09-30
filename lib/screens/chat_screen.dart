@@ -1,14 +1,10 @@
-import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/chat_message.dart';
 import '../services/bank_provider.dart';
-import '../services/notification_service.dart';
 import '../utils/theme.dart';
-import '../widgets/glass_container.dart';
 
 class ChatScreen extends StatefulWidget {
   final String otherUserPhone;
@@ -38,7 +34,6 @@ class _ChatScreenState extends State<ChatScreen> {
       _fetchInitialMessages();
     });
 
-    // Auto-refresh messages every 3 seconds
     _refreshTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
       if (mounted) {
         final provider = Provider.of<BankProvider>(context, listen: false);
@@ -61,8 +56,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _refreshTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
-    // Clear active chat to avoid provider conflicts
-    // ignore: use_build_context_synchronously
     Provider.of<BankProvider>(context, listen: false).setActiveChat(null);
     super.dispose();
   }
@@ -92,109 +85,19 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _showImageSourceSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: BankTheme.accentPurple),
-              title: const Text('Take Photo'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickAndSendImage(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: BankTheme.accentPurple),
-              title: const Text('Choose from Gallery'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickAndSendImage(ImageSource.gallery);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickAndSendImage(ImageSource source) async {
-    final ImagePicker picker = ImagePicker();
-    try {
-      final XFile? image = await picker.pickImage(
-        source: source,
-        imageQuality: 70,
-      );
-
-      if (image == null) return;
-
-      if (!mounted) return;
-
-      // Show immediate feedback in the UI
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              ),
-              SizedBox(width: 16),
-              Text('Uploading image proof...'),
-            ],
-          ),
-          duration: Duration(seconds: 10), // Long duration, we'll hide it manually
-        ),
-      );
-
-      final String? uploadedUrl = await Provider.of<BankProvider>(context, listen: false)
-          .uploadImage(File(image.path));
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-      if (uploadedUrl != null) {
-        final success = await Provider.of<BankProvider>(context, listen: false).sendMessage(
-          text: 'Sent an image proof',
-          receiverPhone: widget.otherUserPhone,
-          imageUrl: uploadedUrl,
-        );
-        if (success) {
-          _scrollToBottom();
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Upload failed. Please try again.'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
-      }
-      debugPrint('Pick Image Error: $e');
-    }
-  }
-
   void _callAdmin() async {
-    const String adminPhone = '0881689220';
+    final provider = Provider.of<BankProvider>(context, listen: false);
+    final String adminPhone = (widget.otherUserPhone != 'admin-token' && widget.otherUserPhone != 'group')
+        ? widget.otherUserPhone
+        : (provider.memberStats?.adminPhone ?? '0881689220');
+
     final Uri telUri = Uri.parse('tel:$adminPhone');
     if (await canLaunchUrl(telUri)) {
       await launchUrl(telUri);
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not launch dialer for 0881689220')),
+          SnackBar(content: Text('Could not launch dialer for $adminPhone')),
         );
       }
     }
@@ -224,7 +127,7 @@ class _ChatScreenState extends State<ChatScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.phone_rounded, color: Colors.greenAccent),
-            tooltip: 'Call Admin Direct',
+            tooltip: 'Call Direct',
             onPressed: _callAdmin,
           ),
           const SizedBox(width: 8),
@@ -291,21 +194,6 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (msg.imageUrl != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      msg.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Padding(
-                        padding: EdgeInsets.all(8.0),
-                        // Fallback icon if image fails to download
-                        child: Icon(Icons.broken_image_rounded, color: Colors.grey),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                ],
                 if (msg.transactionId != null) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -352,15 +240,6 @@ class _ChatScreenState extends State<ChatScreen> {
       child: SafeArea(
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF1F5F9),
-              child: IconButton(
-                icon: const Icon(Icons.add_photo_alternate_rounded, color: BankTheme.accentPurple, size: 20),
-                onPressed: _showImageSourceSheet,
-              ),
-            ),
-            const SizedBox(width: 8),
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
