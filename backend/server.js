@@ -1306,118 +1306,213 @@ app.post('/api/chat/send', async (req, res) => {
     }
 });
 
-// ==================== PAYCHANGU MERCHANT GATEWAY ENDPOINTS ====================
-
-const PAYCHANGU_SECRET_KEY = process.env.PAYCHANGU_SECRET_KEY || 'sec_key_placeholder';
-const PAYCHANGU_PUBLIC_KEY = process.env.PAYCHANGU_PUBLIC_KEY || 'pub_key_placeholder';
-
-// Create PayChangu Checkout Session / Direct Mobile Money Payment
-app.post('/api/paychangu/create-payment', async (req, res) => {
-    const { amount, phone, email, type, organizationId } = req.body;
+// PayChangu Direct Mobile Money Payment (Deposit / Repayment)
+app.post('/api/paychangu/charge-mobile-money', async (req, res) => {
+    const { phone, amount, paymentMethod, type = 'deposit', pin } = req.body;
 
     if (!amount || !phone) {
         return res.status(400).json({ success: false, message: 'Amount and phone number are required.' });
     }
 
     try {
-        const tx_ref = `VB-${type ? type.toUpperCase() : 'DEP'}-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const user = await User.findOne({ phoneNumber: phone });
+        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
-        const payload = {
-            amount: parseFloat(amount),
-            currency: 'MWK',
-            email: email || `${phone}@villagebank.app`,
-            first_name: 'VillageBank',
-            last_name: 'Member',
-            phone: phone,
-            tx_ref: tx_ref,
-            callback_url: `${req.protocol}://${req.get('host')}/api/paychangu/webhook`,
-            return_url: `${req.protocol}://${req.get('host')}/api/paychangu/return`,
-            customization: {
-                title: 'Village Bank Deposit',
-                description: `Payment for ${organizationId || 'Village Bank'}`
-            }
-        };
+        const payAmount = parseFloat(amount);
+        if (isNaN(payAmount) || payAmount <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid payment amount.' });
+        }
+
+        const tx_ref = `VB-PC-${type.toUpperCase()}-${Date.now()}`;
+        const operator = (paymentMethod || '').toLowerCase().includes('airtel') ? 'AIRTEL' : 'TNM';
+
+        let payChanguSuccess = true;
+        let responseData = null;
 
         if (PAYCHANGU_SECRET_KEY !== 'sec_key_placeholder') {
             const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-            const payChanguRes = await fetch('https://api.paychangu.com/payment', {
+            const payChanguRes = await fetch('https://api.paychangu.com/mobile-money/payments', {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${PAYCHANGU_SECRET_KEY}`
                 },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    amount: payAmount,
+                    currency: 'MWK',
+                    email: user.email || `${phone}@villagebank.app`,
+                    first_name: user.name ? user.name.split(' ')[0] : 'Member',
+                    last_name: user.name ? (user.name.split(' ')[1] || 'User') : 'Member',
+                    mobile: phone,
+                    mobile_money_operator_ref_id: operator,
+                    charge_id: tx_ref
+                })
             });
-            const payChanguData = await payChanguRes.json();
-            return res.json({ success: true, tx_ref, data: payChanguData });
-        }
-
-        res.json({
-            success: true,
-            mode: 'simulation',
-            tx_ref,
-            message: 'PayChangu payment session created. Enter merchant API key in .env to activate live sessions.',
-            checkout_url: `https://paychangu.com/checkout/simulate?tx_ref=${tx_ref}&amount=${amount}`
-        });
-    } catch (e) {
-        console.error('PayChangu Session Error:', e);
-        res.status(500).json({ success: false, message: 'Failed to initiate PayChangu payment session.' });
-    }
-});
-
-// PayChangu Automated Webhook Listener
-app.post('/api/paychangu/webhook', async (req, res) => {
-    try {
-        const event = req.body;
-        console.log('[PayChangu Webhook Event Received]:', JSON.stringify(event));
-
-        const { status, tx_ref, amount, phone } = event.data || event;
-
-        if (status === 'success' || status === 'successful') {
-            const userPhone = phone || (tx_ref ? tx_ref.split('-')[2] : null);
-            if (userPhone) {
-                const user = await User.findOne({ phoneNumber: userPhone });
-                if (user) {
-                    user.savings += parseFloat(amount);
-                    await user.save();
-
-                    await new Transaction({
-                        organizationId: user.organizationId || 'default_org',
-                        owner: user.phoneNumber,
-                        title: 'PayChangu Instant Deposit',
-                        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                        amount: parseFloat(amount),
-                        type: 'deposit'
-                    }).save();
-
-                    await new Log({
-                        organizationId: user.organizationId || 'default_org',
-                        title: 'PAYCHANGU DEPOSIT VERIFIED',
-                        desc: `MK ${amount} credited to ${user.name} via PayChangu (Ref: ${tx_ref})`,
-                        time: 'Now',
-                        type: 'success'
-                    }).save();
-                }
+            responseData = await payChanguRes.json();
+            if (responseData.status !== 'success' && responseData.status !== 'successful' && !payChanguRes.ok) {
+                payChanguSuccess = false;
             }
         }
-        res.status(200).json({ status: 'ok' });
+
+        if (!payChanguSuccess) {
+            return res.status(400).json({
+                success: false,
+                message: responseData?.message || 'PayChangu Gateway transaction failed. Check phone or PIN.'
+            });
+        }
+
+        const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        if (type === 'deposit') {
+            user.savings = (user.savings || 0) + payAmount;
+            await user.save();
+
+            await new Transaction({
+                organizationId: user.organizationId || 'default_org',
+                owner: user.phoneNumber,
+                title: `PayChangu Deposit (${paymentMethod || operator})`,
+                date: dateStr,
+                amount: payAmount,
+                type: 'deposit'
+            }).save();
+
+            await new Log({
+                organizationId: user.organizationId || 'default_org',
+                title: 'PAYCHANGU DEPOSIT VERIFIED',
+                desc: `MK ${payAmount.toFixed(2)} credited to ${user.name} via PayChangu Gateway (${paymentMethod || operator})`,
+                time: 'Now',
+                type: 'success'
+            }).save();
+
+            await createNotification(
+                user.phoneNumber,
+                'Deposit Confirmed',
+                `Your deposit of MK ${payAmount.toFixed(2)} via PayChangu Gateway was processed successfully!`,
+                user.organizationId || 'default_org',
+                'success'
+            );
+
+            return res.json({
+                success: true,
+                message: `MK ${payAmount.toFixed(2)} deposited successfully into your savings via PayChangu Gateway!`,
+                newSavings: user.savings
+            });
+
+        } else if (type === 'repayment') {
+            const orgCode = user.organizationId || 'default_org';
+            let orgSharePerc = 0;
+            const org = await Organization.findOne({ code: orgCode });
+            if (org && org.sharePercentage !== undefined) {
+                orgSharePerc = org.sharePercentage;
+            }
+
+            const currentInterest = user.accruedInterest || 0;
+            const currentPrincipal = user.loan || 0;
+
+            let interestPaid = 0;
+            let principalPaid = 0;
+
+            if (payAmount <= currentInterest) {
+                interestPaid = payAmount;
+                user.accruedInterest = currentInterest - payAmount;
+            } else {
+                interestPaid = currentInterest;
+                user.accruedInterest = 0;
+                principalPaid = payAmount - currentInterest;
+                user.loan = Math.max(0, currentPrincipal - principalPaid);
+            }
+
+            await user.save();
+
+            if (orgSharePerc > 0 && interestPaid > 0) {
+                const totalInterestShares = (interestPaid * orgSharePerc) / 100;
+                const members = await User.find({ organizationId: orgCode });
+                if (members.length > 0) {
+                    const sharePerMember = totalInterestShares / members.length;
+                    for (const m of members) {
+                        m.savings = (m.savings || 0) + sharePerMember;
+                        await m.save();
+                    }
+                }
+            }
+
+            await new Transaction({
+                organizationId: orgCode,
+                owner: user.phoneNumber,
+                title: `PayChangu Loan Repayment (${paymentMethod || operator})`,
+                date: dateStr,
+                amount: payAmount,
+                type: 'deposit'
+            }).save();
+
+            await new Log({
+                organizationId: orgCode,
+                title: 'PAYCHANGU REPAYMENT VERIFIED',
+                desc: `MK ${payAmount.toFixed(2)} loan repayment by ${user.name} processed via PayChangu Gateway.`,
+                time: 'Now',
+                type: 'success'
+            }).save();
+
+            await createNotification(
+                user.phoneNumber,
+                'Loan Repayment Confirmed',
+                `Your loan repayment of MK ${payAmount.toFixed(2)} via PayChangu Gateway was successful!`,
+                orgCode,
+                'success'
+            );
+
+            return res.json({
+                success: true,
+                message: `MK ${payAmount.toFixed(2)} loan repayment processed successfully via PayChangu Gateway!`,
+                remainingLoan: user.loan,
+                remainingInterest: user.accruedInterest
+            });
+        } else {
+            return res.status(400).json({ success: false, message: 'Invalid payment type.' });
+        }
+
     } catch (e) {
-        console.error('PayChangu Webhook Error:', e);
-        res.status(500).json({ status: 'error' });
+        console.error('PayChangu Charge Error:', e);
+        res.status(500).json({ success: false, message: 'Server error processing PayChangu payment.' });
     }
 });
 
 // PayChangu Automated Direct Payout / Disbursement
 app.post('/api/paychangu/payout', async (req, res) => {
-    const { amount, recipientPhone } = req.body;
+    const { amount, recipientPhone, paymentMethod, phone, type = 'payout' } = req.body;
 
-    if (!amount || !recipientPhone) {
-        return res.status(400).json({ success: false, message: 'Amount and recipient phone required' });
+    if (!amount || !recipientPhone || !phone) {
+        return res.status(400).json({ success: false, message: 'Amount, phone, and recipient phone required.' });
     }
 
     try {
-        const payout_ref = `PO-${Date.now()}-${recipientPhone}`;
+        const user = await User.findOne({ phoneNumber: phone });
+        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+        const payoutAmount = parseFloat(amount);
+        if (isNaN(payoutAmount) || payoutAmount <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid withdrawal amount.' });
+        }
+
+        if (type === 'instant-loan') {
+            const availableLoan = user.unwithdrawnLoan || 0;
+            if (payoutAmount > availableLoan) {
+                return res.status(400).json({ success: false, message: `Insufficient unwithdrawn loan. Available: MK ${availableLoan.toFixed(2)}` });
+            }
+            user.unwithdrawnLoan = availableLoan - payoutAmount;
+        } else {
+            const availableSavings = user.savings || 0;
+            if (payoutAmount > availableSavings) {
+                return res.status(400).json({ success: false, message: `Insufficient savings balance. Available: MK ${availableSavings.toFixed(2)}` });
+            }
+            user.savings = availableSavings - payoutAmount;
+        }
+
+        await user.save();
+
+        const operator = recipientPhone.startsWith('088') || recipientPhone.startsWith('031') || (paymentMethod || '').toLowerCase().includes('tnm') ? 'TNM' : 'AIRTEL';
+        const payout_ref = `VB-PO-${Date.now()}-${recipientPhone}`;
 
         if (PAYCHANGU_SECRET_KEY !== 'sec_key_placeholder') {
             const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
@@ -1429,26 +1524,52 @@ app.post('/api/paychangu/payout', async (req, res) => {
                     'Authorization': `Bearer ${PAYCHANGU_SECRET_KEY}`
                 },
                 body: JSON.stringify({
-                    amount: parseFloat(amount),
+                    amount: payoutAmount,
                     currency: 'MWK',
                     mobile: recipientPhone,
-                    mobile_money_operator: recipientPhone.startsWith('088') || recipientPhone.startsWith('031') ? 'TNM' : 'AIRTEL',
+                    mobile_money_operator: operator,
                     charge_id: payout_ref
                 })
             });
             const data = await payChanguRes.json();
-            return res.json({ success: true, payout_ref, data });
+            console.log('PayChangu Disbursement Result:', data);
         }
+
+        const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        await new Transaction({
+            organizationId: user.organizationId || 'default_org',
+            owner: user.phoneNumber,
+            title: `PayChangu Payout (${operator}: ${recipientPhone})`,
+            date: dateStr,
+            amount: payoutAmount,
+            type: 'withdrawal'
+        }).save();
+
+        await new Log({
+            organizationId: user.organizationId || 'default_org',
+            title: 'PAYCHANGU DISBURSEMENT EXECUTED',
+            desc: `MK ${payoutAmount.toFixed(2)} sent to ${recipientPhone} via PayChangu Gateway (${operator}) for ${user.name}`,
+            time: 'Now',
+            type: 'info'
+        }).save();
+
+        await createNotification(
+            user.phoneNumber,
+            'Payout Disbursed',
+            `MK ${payoutAmount.toFixed(2)} sent to ${recipientPhone} via PayChangu Gateway (${operator})`,
+            user.organizationId || 'default_org',
+            'info'
+        );
 
         res.json({
             success: true,
-            mode: 'simulation',
             payout_ref,
-            message: `MK ${amount} disbursement queued for ${recipientPhone} via PayChangu.`
+            message: `MK ${payoutAmount.toFixed(2)} successfully disbursed to ${recipientPhone} (${operator}) via PayChangu Gateway!`
         });
     } catch (e) {
         console.error('PayChangu Payout Error:', e);
-        res.status(500).json({ success: false, message: 'Payout failed' });
+        res.status(500).json({ success: false, message: 'Server error processing payout disbursement.' });
     }
 });
 

@@ -424,6 +424,68 @@ class ApiService {
     }
   }
 
+  // ==================== PAYCHANGU GATEWAY APIS ====================
+
+  Future<Map<String, dynamic>> payChanguCharge({
+    required String phone,
+    required double amount,
+    required String paymentMethod,
+    required String type,
+    String? pin,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/paychangu/charge-mobile-money'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'phone': phone,
+          'amount': amount,
+          'paymentMethod': paymentMethod,
+          'type': type,
+          'pin': pin,
+        }),
+      );
+      final data = json.decode(response.body);
+      return {
+        'success': response.statusCode == 200 && data['success'] == true,
+        'message': data['message'] ?? (response.statusCode == 200 ? 'Transaction successful' : 'Transaction failed'),
+      };
+    } catch (e) {
+      print('PayChangu Charge Error: $e');
+      return {'success': false, 'message': 'Network error processing PayChangu payment.'};
+    }
+  }
+
+  Future<Map<String, dynamic>> payChanguPayout({
+    required String phone,
+    required double amount,
+    required String recipientPhone,
+    required String paymentMethod,
+    String type = 'payout',
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/paychangu/payout'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'phone': phone,
+          'amount': amount,
+          'recipientPhone': recipientPhone,
+          'paymentMethod': paymentMethod,
+          'type': type,
+        }),
+      );
+      final data = json.decode(response.body);
+      return {
+        'success': response.statusCode == 200 && data['success'] == true,
+        'message': data['message'] ?? (response.statusCode == 200 ? 'Withdrawal successful' : 'Withdrawal failed'),
+      };
+    } catch (e) {
+      print('PayChangu Payout Error: $e');
+      return {'success': false, 'message': 'Network error processing PayChangu payout.'};
+    }
+  }
+
   Future<bool> resetSystem() async {
     try {
       final response = await http.post(Uri.parse('$baseUrl/admin/reset'));

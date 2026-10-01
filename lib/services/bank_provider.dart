@@ -496,6 +496,58 @@ class BankProvider with ChangeNotifier {
     return success;
   }
 
+  // ==================== PAYCHANGU GATEWAY PROVIDER METHODS ====================
+
+  Future<Map<String, dynamic>> payChanguCharge({
+    required double amount,
+    required String paymentMethod,
+    required String type,
+    String? phone,
+    String? pin,
+  }) async {
+    if (_user == null) return {'success': false, 'message': 'User not authenticated'};
+    final targetPhone = (phone != null && phone.trim().isNotEmpty) ? phone.trim() : _user!.token;
+    final res = await _apiService.payChanguCharge(
+      phone: targetPhone,
+      amount: amount,
+      paymentMethod: paymentMethod,
+      type: type,
+      pin: pin,
+    );
+    if (res['success'] == true) {
+      NotificationService.playTransactionSound();
+      await refreshMemberData();
+    } else if (res['message'] != null) {
+      _errorMessage = res['message'];
+      notifyListeners();
+    }
+    return res;
+  }
+
+  Future<Map<String, dynamic>> payChanguPayout({
+    required double amount,
+    required String recipientPhone,
+    required String paymentMethod,
+    String type = 'payout',
+  }) async {
+    if (_user == null) return {'success': false, 'message': 'User not authenticated'};
+    final res = await _apiService.payChanguPayout(
+      phone: _user!.token,
+      amount: amount,
+      recipientPhone: recipientPhone,
+      paymentMethod: paymentMethod,
+      type: type,
+    );
+    if (res['success'] == true) {
+      NotificationService.playTransactionSound();
+      await refreshMemberData();
+    } else if (res['message'] != null) {
+      _errorMessage = res['message'];
+      notifyListeners();
+    }
+    return res;
+  }
+
   Future<bool> resetSystem() async {
     final success = await _apiService.resetSystem();
     if (success) await refreshAdminData();

@@ -301,25 +301,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final provider = Provider.of<BankProvider>(context, listen: false);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final String userPhone = provider.user?.token ?? '';
+
     final TextEditingController amountController = TextEditingController();
-    final TextEditingController tidController = TextEditingController();
+    final TextEditingController phoneController = TextEditingController(text: userPhone);
+    final TextEditingController pinController = TextEditingController();
+    bool isProcessing = false;
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: Text('INITIATE DEPOSIT', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: BankTheme.accentPurple.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.payment_rounded, color: BankTheme.accentPurple, size: 22),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'PAYCHANGU DEPOSIT',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    letterSpacing: 1,
+                    color: isDark ? Colors.white : BankTheme.lightTextPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('PAYMENT METHOD', style: TextStyle(fontSize: 10, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary)),
-                DropdownButton<String>(
+                Text('SELECT PAYMENT METHOD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
                   value: _selectedPaymentMethod,
-                  isExpanded: true,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
                   dropdownColor: theme.colorScheme.surface,
                   items: _ussdCodes.keys.map((String value) {
                     final branding = _paymentBranding[value];
@@ -344,7 +375,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               : const Icon(Icons.account_balance_wallet, size: 12),
                           ),
                           const SizedBox(width: 12),
-                          Text(value, style: TextStyle(color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
+                          Text(value, style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
                         ],
                       ),
                     );
@@ -357,76 +388,99 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     }
                   },
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  style: TextStyle(fontSize: 15, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+                  decoration: const InputDecoration(
+                    labelText: 'MOBILE MONEY NUMBER',
+                    hintText: 'e.g. 088xxxxxxx or 099xxxxxxx',
+                    prefixIcon: Icon(Icons.phone_android_rounded),
+                  ),
+                ),
+                const SizedBox(height: 14),
                 TextField(
                   controller: amountController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
                   decoration: const InputDecoration(
                     prefixText: 'MK ',
-                    labelText: 'AMOUNT',
+                    labelText: 'DEPOSIT AMOUNT',
                   ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: tidController,
-                        style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
-                        decoration: const InputDecoration(
-                          labelText: 'TRANSACTION ID (FROM SMS)',
-                          hintText: 'e.g. PP240904.1234.H12345',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.sms_rounded, color: BankTheme.accentPurple),
-                      onPressed: () => _startSmsListener(tidController),
-                      tooltip: 'Fetch from SMS',
-                    ),
-                  ],
+                const SizedBox(height: 14),
+                TextField(
+                  controller: pinController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(fontSize: 15, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+                  decoration: const InputDecoration(
+                    labelText: 'MOBILE MONEY PIN',
+                    hintText: 'Enter PIN to authorize payment',
+                    prefixIcon: Icon(Icons.lock_outline_rounded),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Powered by PayChangu Gateway. No USSD or manual verification needed.',
+                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
                 ),
               ],
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: isProcessing ? null : () => Navigator.pop(context),
               child: Text('CANCEL', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontWeight: FontWeight.bold)),
             ),
-            Column(
-              children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(140, 40), backgroundColor: BankTheme.accentPurple.withOpacity(0.2)),
-                  onPressed: () {
-                    final amount = double.tryParse(amountController.text);
-                    if (amount != null && amount > 0) {
-                      _startSmsListener(tidController);
-                      _launchUSSD(amount, "PENDING"); // Temporary TID
-                    }
-                  },
-                  child: const Text('1. LAUNCH USSD'),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(140, 45)),
-                  onPressed: () {
-                    NotificationService.playClickSound();
-                    final amount = double.tryParse(amountController.text);
-                    final tid = tidController.text.trim();
-                    if (amount != null && amount > 0 && tid.isNotEmpty && tid != "PENDING") {
-                      _launchUSSD(amount, tid);
-                      Navigator.pop(context);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter amount and valid Transaction ID')));
-                    }
-                  },
-                  child: const Text('2. VERIFY DEPOSIT'),
-                ),
-              ],
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(140, 45),
+                backgroundColor: BankTheme.accentPurple,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              icon: isProcessing
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.flash_on_rounded, size: 18),
+              label: Text(isProcessing ? 'PROCESSING...' : 'PAY NOW'),
+              onPressed: isProcessing ? null : () async {
+                final amount = double.tryParse(amountController.text);
+                final phone = phoneController.text.trim();
+                final pin = pinController.text.trim();
+
+                if (amount == null || amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid amount')));
+                  return;
+                }
+                if (phone.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid mobile money phone number')));
+                  return;
+                }
+
+                setDialogState(() => isProcessing = true);
+                NotificationService.playClickSound();
+
+                final res = await provider.payChanguCharge(
+                  amount: amount,
+                  paymentMethod: _selectedPaymentMethod,
+                  type: 'deposit',
+                  phone: phone,
+                  pin: pin.isNotEmpty ? pin : null,
+                );
+
+                if (!context.mounted) return;
+                setDialogState(() => isProcessing = false);
+                Navigator.pop(context);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: res['success'] == true ? Colors.green : Colors.red,
+                    content: Text(res['message'] ?? 'Transaction complete', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -439,28 +493,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final stats = provider.memberStats;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final String userPhone = provider.user?.token ?? '';
+
     final TextEditingController amountController = TextEditingController(text: stats?.totalToRepay.toStringAsFixed(2) ?? '0.00');
-    final TextEditingController tidController = TextEditingController();
+    final TextEditingController phoneController = TextEditingController(text: userPhone);
+    final TextEditingController pinController = TextEditingController();
+    bool isProcessing = false;
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: Text('REPAY LOAN', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.greenAccent.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.assignment_turned_in_rounded, color: Colors.greenAccent, size: 22),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'PAYCHANGU LOAN REPAYMENT',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    letterSpacing: 1,
+                    color: isDark ? Colors.white : BankTheme.lightTextPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Total Due: MK ${stats?.totalToRepay.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: BankTheme.accentPurple)),
-                const SizedBox(height: 20),
-                
-                Text('PAYMENT METHOD', style: TextStyle(fontSize: 10, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary)),
-                DropdownButton<String>(
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.greenAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Total Loan Due:', style: TextStyle(fontSize: 12, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary)),
+                      Text('MK ${stats?.totalToRepay.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.greenAccent, fontSize: 14)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('SELECT PAYMENT METHOD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
                   value: _selectedPaymentMethod,
-                  isExpanded: true,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
                   dropdownColor: theme.colorScheme.surface,
                   items: _ussdCodes.keys.map((String value) {
                     final branding = _paymentBranding[value];
@@ -485,7 +582,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               : const Icon(Icons.account_balance_wallet, size: 12),
                           ),
                           const SizedBox(width: 12),
-                          Text(value, style: TextStyle(color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
+                          Text(value, style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
                         ],
                       ),
                     );
@@ -498,76 +595,94 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     }
                   },
                 ),
-                
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  style: TextStyle(fontSize: 15, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+                  decoration: const InputDecoration(
+                    labelText: 'MOBILE MONEY NUMBER',
+                    hintText: 'e.g. 088xxxxxxx or 099xxxxxxx',
+                    prefixIcon: Icon(Icons.phone_android_rounded),
+                  ),
+                ),
+                const SizedBox(height: 14),
                 TextField(
                   controller: amountController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
                   decoration: const InputDecoration(
                     prefixText: 'MK ',
-                    labelText: 'CONFIRM AMOUNT',
+                    labelText: 'REPAYMENT AMOUNT',
                   ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: tidController,
-                        style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
-                        decoration: const InputDecoration(
-                          labelText: 'TRANSACTION ID (FROM SMS)',
-                          hintText: 'e.g. PP240904.1234.H12345',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.sms_rounded, color: BankTheme.accentPurple),
-                      onPressed: () => _startSmsListener(tidController),
-                      tooltip: 'Fetch from SMS',
-                    ),
-                  ],
+                const SizedBox(height: 14),
+                TextField(
+                  controller: pinController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(fontSize: 15, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+                  decoration: const InputDecoration(
+                    labelText: 'MOBILE MONEY PIN',
+                    hintText: 'Enter PIN to authorize repayment',
+                    prefixIcon: Icon(Icons.lock_outline_rounded),
+                  ),
                 ),
               ],
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: isProcessing ? null : () => Navigator.pop(context),
               child: Text('CANCEL', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontWeight: FontWeight.bold)),
             ),
-            Column(
-              children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(140, 40), backgroundColor: Colors.greenAccent.withOpacity(0.2), foregroundColor: isDark ? Colors.greenAccent : Colors.black),
-                  onPressed: () {
-                    final amount = double.tryParse(amountController.text);
-                    if (amount != null && amount > 0) {
-                      _startSmsListener(tidController);
-                      _launchUSSD(amount, "PENDING", isRepayment: true);
-                    }
-                  },
-                  child: const Text('1. LAUNCH USSD'),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(140, 45), backgroundColor: Colors.greenAccent, foregroundColor: Colors.black),
-                  onPressed: () {
-                    NotificationService.playClickSound();
-                    final amount = double.tryParse(amountController.text);
-                    final tid = tidController.text.trim();
-                    if (amount != null && amount > 0 && tid.isNotEmpty && tid != "PENDING") {
-                      _launchUSSD(amount, tid, isRepayment: true);
-                      Navigator.pop(context);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter amount and valid Transaction ID')));
-                    }
-                  },
-                  child: const Text('2. VERIFY REPAYMENT'),
-                ),
-              ],
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(140, 45),
+                backgroundColor: Colors.greenAccent,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              icon: isProcessing
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                : const Icon(Icons.check_circle_rounded, size: 18),
+              label: Text(isProcessing ? 'PROCESSING...' : 'REPAY NOW'),
+              onPressed: isProcessing ? null : () async {
+                final amount = double.tryParse(amountController.text);
+                final phone = phoneController.text.trim();
+                final pin = pinController.text.trim();
+
+                if (amount == null || amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid amount')));
+                  return;
+                }
+                if (phone.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter mobile money phone number')));
+                  return;
+                }
+
+                setDialogState(() => isProcessing = true);
+                NotificationService.playClickSound();
+
+                final res = await provider.payChanguCharge(
+                  amount: amount,
+                  paymentMethod: _selectedPaymentMethod,
+                  type: 'repayment',
+                  phone: phone,
+                  pin: pin.isNotEmpty ? pin : null,
+                );
+
+                if (!context.mounted) return;
+                setDialogState(() => isProcessing = false);
+                Navigator.pop(context);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: res['success'] == true ? Colors.green : Colors.red,
+                    content: Text(res['message'] ?? 'Repayment complete', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -580,74 +695,173 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final double totalSavings = provider.memberStats?.savings ?? 0.0;
-    final TextEditingController amountController = TextEditingController(text: totalSavings.toStringAsFixed(2));
-    final TextEditingController accountController = TextEditingController();
+    final String userPhone = provider.user?.token ?? '';
+
+    final TextEditingController amountController = TextEditingController(text: totalSavings > 0 ? totalSavings.toStringAsFixed(2) : '');
+    final TextEditingController accountController = TextEditingController(text: userPhone);
+    String selectedMethod = _selectedPaymentMethod;
+    bool isProcessing = false;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: theme.colorScheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text('REQUEST PAYOUT', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Request your savings to be sent to your choice account.', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontSize: 12)),
-            const SizedBox(height: 20),
-            TextField(
-              controller: amountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              autofocus: true,
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
-              decoration: const InputDecoration(
-                prefixText: 'MK ',
-                labelText: 'AMOUNT',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orangeAccent.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.outbox_rounded, color: Colors.orangeAccent, size: 22),
               ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: accountController,
-              style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
-              decoration: const InputDecoration(
-                labelText: 'RECEIVING ACCOUNT / PHONE NUMBER',
-                hintText: 'e.g. National Bank No or Phone',
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'PAYCHANGU SAVINGS WITHDRAWAL',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    letterSpacing: 1,
+                    color: isDark ? Colors.white : BankTheme.lightTextPrimary,
+                  ),
+                ),
               ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Instant payout directly to your mobile money account.', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontSize: 12)),
+                const SizedBox(height: 16),
+                Text('WITHDRAWAL METHOD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  value: selectedMethod,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  dropdownColor: theme.colorScheme.surface,
+                  items: _ussdCodes.keys.map((String value) {
+                    final branding = _paymentBranding[value];
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: branding?['color']?.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            padding: const EdgeInsets.all(2),
+                            child: branding != null
+                              ? Image.network(
+                                  branding['logo'],
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (c, e, s) => Icon(Icons.account_balance_wallet, size: 12, color: branding['color']),
+                                )
+                              : const Icon(Icons.account_balance_wallet, size: 12),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(value, style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (newValue) {
+                    if (newValue != null) {
+                      setDialogState(() {
+                        selectedMethod = newValue;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: amountController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+                  decoration: const InputDecoration(
+                    prefixText: 'MK ',
+                    labelText: 'AMOUNT',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: accountController,
+                  style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+                  decoration: const InputDecoration(
+                    labelText: 'RECEIVING PHONE NUMBER',
+                    hintText: 'e.g. 088xxxxxxx or 099xxxxxxx',
+                    prefixIcon: Icon(Icons.phone_android_rounded),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text('Max Available Savings: MK ${totalSavings.toStringAsFixed(2)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: BankTheme.statusYellow)),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text('Max Available: MK ${totalSavings.toStringAsFixed(2)}', style: TextStyle(fontSize: 11, color: BankTheme.statusYellow)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isProcessing ? null : () => Navigator.pop(context),
+              child: Text('CANCEL', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(140, 45),
+                backgroundColor: Colors.orangeAccent,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              icon: isProcessing
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                : const Icon(Icons.send_rounded, size: 18),
+              label: Text(isProcessing ? 'DISBURSING...' : 'WITHDRAW NOW'),
+              onPressed: isProcessing ? null : () async {
+                final amount = double.tryParse(amountController.text);
+                final receivingAcc = accountController.text.trim();
+
+                if (amount == null || amount <= 0 || amount > totalSavings) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Please enter a valid amount up to MK ${totalSavings.toStringAsFixed(2)}')));
+                  return;
+                }
+                if (receivingAcc.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter receiving phone number')));
+                  return;
+                }
+
+                setDialogState(() => isProcessing = true);
+                NotificationService.playClickSound();
+
+                final res = await provider.payChanguPayout(
+                  amount: amount,
+                  recipientPhone: receivingAcc,
+                  paymentMethod: selectedMethod,
+                  type: 'payout',
+                );
+
+                if (!context.mounted) return;
+                setDialogState(() => isProcessing = false);
+                Navigator.pop(context);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: res['success'] == true ? Colors.orangeAccent : Colors.red,
+                    content: Text(res['message'] ?? 'Payout complete', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  ),
+                );
+              },
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('CANCEL', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontWeight: FontWeight.bold)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(minimumSize: const Size(120, 45), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.black),
-            onPressed: () async {
-              final amount = double.tryParse(amountController.text);
-              final receivingAcc = accountController.text.trim();
-              if (amount != null && amount > 0 && amount <= totalSavings && receivingAcc.isNotEmpty) {
-                final success = await provider.requestPayout(amount, receivingAcc);
-                if (!mounted) return;
-                Navigator.pop(context);
-                if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      backgroundColor: Colors.orangeAccent,
-                      behavior: SnackBarBehavior.floating,
-                      content: Text('Payout request sent to Treasurer!', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                    ),
-                  );
-                }
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please verify fields and ensure details are specified.')));
-              }
-            },
-            child: const Text('REQUEST'),
-          ),
-        ],
       ),
     );
   }
@@ -662,20 +876,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final TextEditingController amountController = TextEditingController(text: unwithdrawn > 0 ? unwithdrawn.toStringAsFixed(2) : '');
     final TextEditingController phoneController = TextEditingController(text: defaultPhone);
     String selectedMethod = 'TNM Mpamba';
+    bool isProcessing = false;
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
               const Icon(Icons.flash_on_rounded, color: Colors.greenAccent),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'INSTANT LOAN WITHDRAWAL',
+                  'PAYCHANGU INSTANT WITHDRAWAL',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
@@ -704,7 +919,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'No Admin Approval Needed! Available Borrowed Cash in Account: MK ${unwithdrawn.toStringAsFixed(2)}',
+                          'Instant PayChangu Disbursement! Available Loaned Cash: MK ${unwithdrawn.toStringAsFixed(2)}',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -716,10 +931,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text('WITHDRAWAL METHOD', style: TextStyle(fontSize: 10, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary)),
-                DropdownButton<String>(
+                Text('WITHDRAWAL METHOD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
                   value: selectedMethod,
-                  isExpanded: true,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
                   dropdownColor: theme.colorScheme.surface,
                   items: ['TNM Mpamba', 'Airtel Money', 'National Bank (626)'].map((String value) {
                     final branding = _paymentBranding[value];
@@ -744,7 +963,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               : const Icon(Icons.account_balance_wallet, size: 12),
                           ),
                           const SizedBox(width: 12),
-                          Text(value, style: TextStyle(color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
+                          Text(value, style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
                         ],
                       ),
                     );
@@ -770,15 +989,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: phoneController,
+                  keyboardType: TextInputType.phone,
                   style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary),
                   decoration: const InputDecoration(
                     labelText: 'RECEIVING TNM / AIRTEL NUMBER',
                     hintText: 'e.g. 088xxxxxxx or 099xxxxxxx',
+                    prefixIcon: Icon(Icons.phone_android_rounded),
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '* You can specify any TNM or Airtel number to receive cash without changing SIM cards.',
+                  '* Money will be sent directly to this number via PayChangu Mobile Money Gateway.',
                   style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
                 ),
               ],
@@ -786,7 +1007,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: isProcessing ? null : () => Navigator.pop(context),
               child: Text('CANCEL', style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontWeight: FontWeight.bold)),
             ),
             ElevatedButton.icon(
@@ -794,10 +1015,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 minimumSize: const Size(140, 45),
                 backgroundColor: Colors.greenAccent,
                 foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              icon: const Icon(Icons.flash_on_rounded, size: 18),
-              label: const Text('WITHDRAW NOW'),
-              onPressed: () async {
+              icon: isProcessing
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                : const Icon(Icons.flash_on_rounded, size: 18),
+              label: Text(isProcessing ? 'DISBURSING...' : 'WITHDRAW NOW'),
+              onPressed: isProcessing ? null : () async {
                 final amount = double.tryParse(amountController.text);
                 final receivingPhone = phoneController.text.trim();
 
@@ -816,31 +1040,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   return;
                 }
 
-                final success = await provider.instantWithdrawLoan(
+                setDialogState(() => isProcessing = true);
+                NotificationService.playClickSound();
+
+                final res = await provider.payChanguPayout(
                   amount: amount,
+                  recipientPhone: receivingPhone,
                   paymentMethod: selectedMethod,
-                  receivingPhone: receivingPhone,
+                  type: 'instant-loan',
                 );
 
-                if (!mounted) return;
+                if (!context.mounted) return;
+                setDialogState(() => isProcessing = false);
                 Navigator.pop(context);
 
-                if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      backgroundColor: Colors.greenAccent,
-                      behavior: SnackBarBehavior.floating,
-                      content: Text(
-                        'MK ${amount.toStringAsFixed(2)} instantly transferred to $receivingPhone via $selectedMethod!',
-                        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(provider.errorMessage ?? 'Withdrawal failed.')),
-                  );
-                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: res['success'] == true ? Colors.greenAccent : Colors.red,
+                    content: Text(res['message'] ?? 'Withdrawal complete', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  ),
+                );
               },
             ),
           ],
@@ -1121,7 +1340,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ],
                   const SizedBox(height: 32),
-                  _buildAdminBankDetails(),
+                  _buildAdminBankDetails(provider),
                   const SizedBox(height: 32),
                   GlassContainer(
                     padding: const EdgeInsets.all(24),
