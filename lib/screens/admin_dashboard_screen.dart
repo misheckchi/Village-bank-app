@@ -340,6 +340,79 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _showSetSharePercentageDialog() {
+    final provider = Provider.of<BankProvider>(context, listen: false);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final currentShare = provider.adminStats?.sharePercentage ?? 25.0;
+    final controller = TextEditingController(text: currentShare.toStringAsFixed(1));
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        title: Text(
+          'MEMBER SHARE RATE',
+          style: TextStyle(
+            color: isDark ? Colors.white : BankTheme.lightTextPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Set the percentage of interest profit distributed to organization members as yield (e.g. 25% yield).',
+              style: TextStyle(color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: TextStyle(color: isDark ? Colors.white : BankTheme.lightTextPrimary),
+              decoration: const InputDecoration(
+                labelText: 'Member Yield Percentage (%)',
+                hintText: 'Enter percentage (0 - 50)',
+                suffixText: '%',
+                prefixIcon: Icon(Icons.percent_rounded, color: BankTheme.accentPurple),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL', style: TextStyle(color: BankTheme.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final val = double.tryParse(controller.text.trim());
+              if (val != null && val >= 0 && val <= 50) {
+                final orgCode = provider.user?.organizationId ?? 'default_org';
+                final success = await provider.updateOrganizationSharePercentage(orgCode, val);
+                if (mounted) {
+                  Navigator.pop(context);
+                  if (success) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Member share percentage updated to ${val.toStringAsFixed(1)}%')),
+                    );
+                  }
+                }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter a valid percentage between 0% and 50%')),
+                );
+              }
+            },
+            child: const Text('UPDATE'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showResetConfirmation() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -760,17 +833,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Row(
                 children: [
                   _buildActionTile(
+                    Icons.percent_rounded, 
+                    'MEMBER SHARE RATE', 
+                    '${stats?.sharePercentage.toStringAsFixed(1) ?? "25.0"}% YIELD',
+                    onTap: _showSetSharePercentageDialog,
+                  ),
+                  const SizedBox(width: 16),
+                  _buildActionTile(
                     Icons.bar_chart, 
                     'ANALYTICS', 
                     'REAL-TIME',
                     onTap: () => setState(() => _activeTabIndex = 4),
-                  ),
-                  const SizedBox(width: 16),
-                  _buildActionTile(
-                    Icons.phone_android_rounded, 
-                    'RECEIVING ACCOUNT', 
-                    provider.user?.token ?? 'UPDATE NUMBER',
-                    onTap: _showChangeAccountNumberDialog,
                   ),
                 ],
               ),

@@ -849,6 +849,9 @@ app.get('/api/admin/overview', async (req, res) => {
         const savingsValues = users.map(u => u.savings);
         const highestNet = savingsValues.length > 0 ? Math.max(...savingsValues) : 0;
 
+        const org = await Organization.findOne({ code: orgCode === 'all' ? 'default_org' : orgCode });
+        const sharePercentage = org ? (org.sharePercentage !== undefined ? org.sharePercentage : 25) : 25;
+
         res.json({
             totalMembers: users.length,
             groupFund: totalSavings - totalLoans,
@@ -858,7 +861,8 @@ app.get('/api/admin/overview', async (req, res) => {
             pendingDeposits: pDeposits,
             pendingRepayments: pRepayments,
             highestNet: highestNet,
-            bankCommission: bankFund
+            bankCommission: bankFund,
+            sharePercentage: sharePercentage
         });
     } catch (e) {
         res.status(500).json({});

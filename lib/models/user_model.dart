@@ -103,6 +103,7 @@ class AdminStats {
   final double totalLoans;
   final double highestNet;
   final double bankCommission;
+  final double sharePercentage;
 
   AdminStats({
     required this.totalMembers,
@@ -111,6 +112,7 @@ class AdminStats {
     required this.totalLoans,
     required this.highestNet,
     required this.bankCommission,
+    this.sharePercentage = 25.0,
   });
 
   factory AdminStats.fromJson(Map<String, dynamic> json) {
@@ -121,6 +123,7 @@ class AdminStats {
       totalLoans: (json['totalLoans'] as num?)?.toDouble() ?? 0.0,
       highestNet: (json['highestNet'] as num?)?.toDouble() ?? 0.0,
       bankCommission: (json['bankCommission'] as num?)?.toDouble() ?? 0.0,
+      sharePercentage: (json['sharePercentage'] as num?)?.toDouble() ?? 25.0,
     );
   }
 }
