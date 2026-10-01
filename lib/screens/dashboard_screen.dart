@@ -362,17 +362,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             width: 24,
                             height: 24,
                             decoration: BoxDecoration(
-                              color: branding?['color']?.withOpacity(0.1),
+                              color: branding?['color']?.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            padding: const EdgeInsets.all(2),
-                            child: branding != null
-                              ? Image.network(
-                                  branding['logo'],
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (c, e, s) => Icon(Icons.account_balance_wallet, size: 12, color: branding['color']),
-                                )
-                              : const Icon(Icons.account_balance_wallet, size: 12),
+                            child: Icon(
+                              value.contains('Airtel')
+                                  ? Icons.phone_android_rounded
+                                  : value.contains('TNM')
+                                      ? Icons.account_balance_wallet_rounded
+                                      : Icons.account_balance_rounded,
+                              size: 14,
+                              color: branding?['color'] ?? BankTheme.accentPurple,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Text(value, style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
@@ -569,17 +570,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             width: 24,
                             height: 24,
                             decoration: BoxDecoration(
-                              color: branding?['color']?.withOpacity(0.1),
+                              color: branding?['color']?.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            padding: const EdgeInsets.all(2),
-                            child: branding != null
-                              ? Image.network(
-                                  branding['logo'],
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (c, e, s) => Icon(Icons.account_balance_wallet, size: 12, color: branding['color']),
-                                )
-                              : const Icon(Icons.account_balance_wallet, size: 12),
+                            child: Icon(
+                              value.contains('Airtel')
+                                  ? Icons.phone_android_rounded
+                                  : value.contains('TNM')
+                                      ? Icons.account_balance_wallet_rounded
+                                      : Icons.account_balance_rounded,
+                              size: 14,
+                              color: branding?['color'] ?? BankTheme.accentPurple,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Text(value, style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
@@ -758,17 +760,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             width: 24,
                             height: 24,
                             decoration: BoxDecoration(
-                              color: branding?['color']?.withOpacity(0.1),
+                              color: branding?['color']?.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            padding: const EdgeInsets.all(2),
-                            child: branding != null
-                              ? Image.network(
-                                  branding['logo'],
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (c, e, s) => Icon(Icons.account_balance_wallet, size: 12, color: branding['color']),
-                                )
-                              : const Icon(Icons.account_balance_wallet, size: 12),
+                            child: Icon(
+                              value.contains('Airtel')
+                                  ? Icons.phone_android_rounded
+                                  : value.contains('TNM')
+                                      ? Icons.account_balance_wallet_rounded
+                                      : Icons.account_balance_rounded,
+                              size: 14,
+                              color: branding?['color'] ?? BankTheme.accentPurple,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Text(value, style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
@@ -950,17 +953,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             width: 24,
                             height: 24,
                             decoration: BoxDecoration(
-                              color: branding?['color']?.withOpacity(0.1),
+                              color: branding?['color']?.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            padding: const EdgeInsets.all(2),
-                            child: branding != null
-                              ? Image.network(
-                                  branding['logo'],
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (c, e, s) => Icon(Icons.account_balance_wallet, size: 12, color: branding['color']),
-                                )
-                              : const Icon(Icons.account_balance_wallet, size: 12),
+                            child: Icon(
+                              value.contains('Airtel')
+                                  ? Icons.phone_android_rounded
+                                  : value.contains('TNM')
+                                      ? Icons.account_balance_wallet_rounded
+                                      : Icons.account_balance_rounded,
+                              size: 14,
+                              color: branding?['color'] ?? BankTheme.accentPurple,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Text(value, style: TextStyle(fontSize: 14, color: isDark ? Colors.white : BankTheme.lightTextPrimary)),
