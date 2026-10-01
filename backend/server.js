@@ -1358,7 +1358,7 @@ app.post('/api/paychangu/charge-mobile-money', async (req, res) => {
         if (!payChanguSuccess) {
             return res.status(400).json({
                 success: false,
-                message: responseData?.message || 'PayChangu Gateway transaction failed. Check phone or PIN.'
+                message: responseData?.message || 'Mobile Money transaction failed. Check phone or PIN.'
             });
         }
 
@@ -1371,7 +1371,7 @@ app.post('/api/paychangu/charge-mobile-money', async (req, res) => {
             await new Transaction({
                 organizationId: user.organizationId || 'default_org',
                 owner: user.phoneNumber,
-                title: `PayChangu Deposit (${paymentMethod || operator})`,
+                title: `Instant Deposit (${paymentMethod || operator})`,
                 date: dateStr,
                 amount: payAmount,
                 type: 'deposit'
@@ -1379,8 +1379,8 @@ app.post('/api/paychangu/charge-mobile-money', async (req, res) => {
 
             await new Log({
                 organizationId: user.organizationId || 'default_org',
-                title: 'PAYCHANGU DEPOSIT VERIFIED',
-                desc: `MK ${payAmount.toFixed(2)} credited to ${user.name} via PayChangu Gateway (${paymentMethod || operator})`,
+                title: 'INSTANT DEPOSIT VERIFIED',
+                desc: `MK ${payAmount.toFixed(2)} credited to ${user.name} via Direct Gateway (${paymentMethod || operator})`,
                 time: 'Now',
                 type: 'success'
             }).save();
@@ -1388,14 +1388,14 @@ app.post('/api/paychangu/charge-mobile-money', async (req, res) => {
             await createNotification(
                 user.phoneNumber,
                 'Deposit Confirmed',
-                `Your deposit of MK ${payAmount.toFixed(2)} via PayChangu Gateway was processed successfully!`,
+                `Your deposit of MK ${payAmount.toFixed(2)} via Direct Gateway was processed successfully!`,
                 user.organizationId || 'default_org',
                 'success'
             );
 
             return res.json({
                 success: true,
-                message: `MK ${payAmount.toFixed(2)} deposited successfully into your savings via PayChangu Gateway!`,
+                message: `MK ${payAmount.toFixed(2)} deposited successfully into your savings!`,
                 newSavings: user.savings
             });
 
@@ -1440,7 +1440,7 @@ app.post('/api/paychangu/charge-mobile-money', async (req, res) => {
             await new Transaction({
                 organizationId: orgCode,
                 owner: user.phoneNumber,
-                title: `PayChangu Loan Repayment (${paymentMethod || operator})`,
+                title: `Loan Repayment (${paymentMethod || operator})`,
                 date: dateStr,
                 amount: payAmount,
                 type: 'deposit'
@@ -1448,8 +1448,8 @@ app.post('/api/paychangu/charge-mobile-money', async (req, res) => {
 
             await new Log({
                 organizationId: orgCode,
-                title: 'PAYCHANGU REPAYMENT VERIFIED',
-                desc: `MK ${payAmount.toFixed(2)} loan repayment by ${user.name} processed via PayChangu Gateway.`,
+                title: 'INSTANT REPAYMENT VERIFIED',
+                desc: `MK ${payAmount.toFixed(2)} loan repayment by ${user.name} processed via Direct Gateway.`,
                 time: 'Now',
                 type: 'success'
             }).save();
@@ -1457,14 +1457,14 @@ app.post('/api/paychangu/charge-mobile-money', async (req, res) => {
             await createNotification(
                 user.phoneNumber,
                 'Loan Repayment Confirmed',
-                `Your loan repayment of MK ${payAmount.toFixed(2)} via PayChangu Gateway was successful!`,
+                `Your loan repayment of MK ${payAmount.toFixed(2)} via Direct Gateway was successful!`,
                 orgCode,
                 'success'
             );
 
             return res.json({
                 success: true,
-                message: `MK ${payAmount.toFixed(2)} loan repayment processed successfully via PayChangu Gateway!`,
+                message: `MK ${payAmount.toFixed(2)} loan repayment processed successfully!`,
                 remainingLoan: user.loan,
                 remainingInterest: user.accruedInterest
             });
@@ -1473,12 +1473,12 @@ app.post('/api/paychangu/charge-mobile-money', async (req, res) => {
         }
 
     } catch (e) {
-        console.error('PayChangu Charge Error:', e);
-        res.status(500).json({ success: false, message: 'Server error processing PayChangu payment.' });
+        console.error('Mobile Money Charge Error:', e);
+        res.status(500).json({ success: false, message: 'Server error processing Mobile Money payment.' });
     }
 });
 
-// PayChangu Automated Direct Payout / Disbursement
+// Automated Direct Payout / Disbursement
 app.post('/api/paychangu/payout', async (req, res) => {
     const { amount, recipientPhone, paymentMethod, phone, type = 'payout' } = req.body;
 
@@ -1532,7 +1532,7 @@ app.post('/api/paychangu/payout', async (req, res) => {
                 })
             });
             const data = await payChanguRes.json();
-            console.log('PayChangu Disbursement Result:', data);
+            console.log('Mobile Money Disbursement Result:', data);
         }
 
         const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -1540,7 +1540,7 @@ app.post('/api/paychangu/payout', async (req, res) => {
         await new Transaction({
             organizationId: user.organizationId || 'default_org',
             owner: user.phoneNumber,
-            title: `PayChangu Payout (${operator}: ${recipientPhone})`,
+            title: `Instant Payout (${operator}: ${recipientPhone})`,
             date: dateStr,
             amount: payoutAmount,
             type: 'withdrawal'
@@ -1548,8 +1548,8 @@ app.post('/api/paychangu/payout', async (req, res) => {
 
         await new Log({
             organizationId: user.organizationId || 'default_org',
-            title: 'PAYCHANGU DISBURSEMENT EXECUTED',
-            desc: `MK ${payoutAmount.toFixed(2)} sent to ${recipientPhone} via PayChangu Gateway (${operator}) for ${user.name}`,
+            title: 'INSTANT DISBURSEMENT EXECUTED',
+            desc: `MK ${payoutAmount.toFixed(2)} sent to ${recipientPhone} via Direct Gateway (${operator}) for ${user.name}`,
             time: 'Now',
             type: 'info'
         }).save();
@@ -1557,7 +1557,7 @@ app.post('/api/paychangu/payout', async (req, res) => {
         await createNotification(
             user.phoneNumber,
             'Payout Disbursed',
-            `MK ${payoutAmount.toFixed(2)} sent to ${recipientPhone} via PayChangu Gateway (${operator})`,
+            `MK ${payoutAmount.toFixed(2)} sent to ${recipientPhone} via Direct Gateway (${operator})`,
             user.organizationId || 'default_org',
             'info'
         );
@@ -1565,10 +1565,10 @@ app.post('/api/paychangu/payout', async (req, res) => {
         res.json({
             success: true,
             payout_ref,
-            message: `MK ${payoutAmount.toFixed(2)} successfully disbursed to ${recipientPhone} (${operator}) via PayChangu Gateway!`
+            message: `MK ${payoutAmount.toFixed(2)} successfully disbursed to ${recipientPhone} (${operator})!`
         });
     } catch (e) {
-        console.error('PayChangu Payout Error:', e);
+        console.error('Payout Error:', e);
         res.status(500).json({ success: false, message: 'Server error processing payout disbursement.' });
     }
 });

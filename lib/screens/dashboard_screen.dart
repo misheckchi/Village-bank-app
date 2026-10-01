@@ -327,7 +327,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'PAYCHANGU DEPOSIT',
+                  'INSTANT MOBILE DEPOSIT',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -423,7 +423,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Powered by PayChangu Gateway. No USSD or manual verification needed.',
+                  'Secure Mobile Money Gateway. No USSD or manual verification required.',
                   style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
                 ),
               ],
@@ -519,7 +519,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'PAYCHANGU LOAN REPAYMENT',
+                  'INSTANT LOAN REPAYMENT',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
@@ -721,7 +721,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'PAYCHANGU SAVINGS WITHDRAWAL',
+                  'INSTANT SAVINGS WITHDRAWAL',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
@@ -890,7 +890,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'PAYCHANGU INSTANT WITHDRAWAL',
+                  'INSTANT LOAN WITHDRAWAL',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
@@ -919,7 +919,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Instant PayChangu Disbursement! Available Loaned Cash: MK ${unwithdrawn.toStringAsFixed(2)}',
+                          'Instant Mobile Disbursement! Available Loaned Cash: MK ${unwithdrawn.toStringAsFixed(2)}',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -999,7 +999,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '* Money will be sent directly to this number via PayChangu Mobile Money Gateway.',
+                  '* Money will be sent directly to this number via Direct Mobile Money Gateway.',
                   style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: isDark ? BankTheme.textMuted : BankTheme.lightTextSecondary),
                 ),
               ],
