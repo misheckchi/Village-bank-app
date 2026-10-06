@@ -8,6 +8,20 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const INTEREST_RATE = 0.35; // 35%
 
+const PAYCHANGU_SECRET_KEY = process.env.PAYCHANGU_SECRET_KEY || 'sec_key_placeholder';
+const FIXIE_URL = process.env.FIXIE_URL;
+
+let proxyAgent = null;
+if (FIXIE_URL) {
+    try {
+        const { HttpsProxyAgent } = require('https-proxy-agent');
+        proxyAgent = new HttpsProxyAgent(FIXIE_URL);
+        console.log('[PROXY] Fixie Proxy Agent configured successfully');
+    } catch (e) {
+        console.warn('[PROXY] Warning: Could not initialize https-proxy-agent:', e.message);
+    }
+}
+
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
@@ -1335,7 +1349,7 @@ app.post('/api/paychangu/charge-mobile-money', async (req, res) => {
 
         if (PAYCHANGU_SECRET_KEY !== 'sec_key_placeholder') {
             const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-            const payChanguRes = await fetch('https://api.paychangu.com/mobile-money/payments', {
+            const fetchOptions = {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -1352,7 +1366,10 @@ app.post('/api/paychangu/charge-mobile-money', async (req, res) => {
                     mobile_money_operator_ref_id: operator,
                     charge_id: tx_ref
                 })
-            });
+            };
+            if (proxyAgent) fetchOptions.agent = proxyAgent;
+
+            const payChanguRes = await fetch('https://api.paychangu.com/mobile-money/payments', fetchOptions);
             responseData = await payChanguRes.json();
             if (responseData.status !== 'success' && responseData.status !== 'successful' && !payChanguRes.ok) {
                 payChanguSuccess = false;
@@ -1520,7 +1537,7 @@ app.post('/api/paychangu/payout', async (req, res) => {
 
         if (PAYCHANGU_SECRET_KEY !== 'sec_key_placeholder') {
             const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-            const payChanguRes = await fetch('https://api.paychangu.com/mobile-money/disbursements', {
+            const fetchOptions = {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -1534,7 +1551,10 @@ app.post('/api/paychangu/payout', async (req, res) => {
                     mobile_money_operator: operator,
                     charge_id: payout_ref
                 })
-            });
+            };
+            if (proxyAgent) fetchOptions.agent = proxyAgent;
+
+            const payChanguRes = await fetch('https://api.paychangu.com/mobile-money/disbursements', fetchOptions);
             const data = await payChanguRes.json();
             console.log('Mobile Money Disbursement Result:', data);
         }
